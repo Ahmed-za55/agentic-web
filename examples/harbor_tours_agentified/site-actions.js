@@ -42,7 +42,7 @@ class SiteActions {
   static readStateAction() {
     return {
       name: "get_tours_state",
-      description: "Read the tours (days, times, prices, ages, dogs, access), today and the next days with weekdays, the basket with its version and total, what the page's panels show, and page facts such as payment, booking, contact and where to stay, with links. Changes nothing.",
+      description: "Read the tours (days, times, prices, ages, dogs, access), today and the next days with weekdays, the basket with its version and total, what the page's panels show, and page facts such as payment, booking, contact and where to stay, with links. Changes nothing. Call it before answering about trips, prices or the basket, and again in each turn that needs it: the visitor can also use the page.",
       effect: "read",
       inputSchema: {
         type: "object",
@@ -132,7 +132,7 @@ class SiteActions {
     };
     return {
       name: "find_departures",
-      description: "List every departure on a date for a party: places left, the party's price, or the problem if it does not fit, and the trip's age limit. The site does not check children's ages against an age limit. Changes nothing.",
+      description: "List every departure on a date for a party: places left, the party's price, or the problem if it does not fit, and the trip's age limit. The site does not check children's ages against an age limit: check each child against it before you offer or add a trip. Changes nothing.",
       effect: "read",
       inputSchema: {
         type: "object",
@@ -189,7 +189,7 @@ class SiteActions {
     const properties = Object.assign(SiteActions.departureProperties(), SiteActions.ticketProperties());
     return {
       name: "add_trip_to_basket",
-      description: "Add one departure for a party to the basket, or replace the basket's trip for that departure. Returns the basket with its new version, or ok false with the site's reason. The site does not check children's ages. Does not reserve.",
+      description: "Call it only when the visitor asks. Add one departure for a party to the basket, or replace the basket's trip for that departure. Returns the basket with its new version, or ok false with the site's reason. The site does not check children's ages. Does not reserve.",
       // "write" runs immediately. The visitor can remove the trip on the page.
       effect: "write",
       inputSchema: {
@@ -220,7 +220,7 @@ class SiteActions {
   static removeTripAction() {
     return {
       name: "remove_trip_from_basket",
-      description: "Take one trip out of the basket, by its tourId, date and time from the basket. Returns the basket with its new version, or ok false with the site's reason.",
+      description: "Call it only when the visitor asks. Take one trip out of the basket, by its tourId, date and time from the basket. Returns the basket with its new version, or ok false with the site's reason.",
       effect: "write",
       inputSchema: {
         type: "object",
@@ -250,7 +250,7 @@ class SiteActions {
   static reserveAction() {
     return {
       name: "reserve_basket",
-      description: "Reserve every trip in the basket under the visitor's details. The browser asks the visitor to confirm first. The site refuses a stale expectedVersion. Returns the reservation code, or ok false with the site's reason. Takes no payment.",
+      description: "Reserve every trip in the basket under the visitor's details. First ask for first and last name, email and mobile phone. In the turn you call it, first call website_get_tours_state and wait for its result: this needs its basket version, and results from earlier turns are not kept. The browser asks the visitor to confirm. The site refuses a stale expectedVersion. Returns the reservation code, or ok false with the site's reason. Takes no payment.",
       // "irreversible" makes the runtime open a confirmation dialog before execute runs.
       effect: "irreversible",
       inputSchema: {

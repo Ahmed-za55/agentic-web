@@ -15,6 +15,9 @@ const READ_ACTION = "get_tours_state";
 const WRITE_ACTION = "add_trip_to_basket";
 const IRREVERSIBLE_ACTION = "reserve_basket";
 const BASE = SiteHarness.BASE;
+// Most characters one model call may send: the system prompt and every tool definition.
+// The visitor pays for both on every call (the skill's references/network_design.md).
+const CALL_BUDGET = 16000;
 const AssistantMount = SiteHarness.AssistantMount;
 // All tests in this file share this one page and run in order, as in one browser tab.
 // Give each test its own data, and compare with the state it read at the start.
@@ -231,19 +234,16 @@ class AgentifiedSiteTest {
       assert.ok(instructions.includes("always give its link from website_"));
       assert.ok(instructions.includes("is empty or starts with \"The user declined\", \"Skipped\" or \"Error from\", it did not answer: say so."));
     }
-    // What the site cannot do, and the rule that reads the basket version again.
+    // What the site cannot do.
     assert.ok(instructions.includes("This site cannot take payment online, change a reservation, cancel one trip of several"));
     assert.ok(instructions.includes("or book rooms."));
-    assert.ok(instructions.includes("In the turn you call website_reserve_basket, first call website_get_tours_state and wait for its result"));
-    // The site cannot check a child's age against a trip's age limit, so the agent does.
-    assert.ok(instructions.includes("The site does not check children's ages"));
     assert.ok(instructions.includes("ask tidewhistle_guesthouse what it offers and how to book."));
   }
 
   /**
-   * Every agentTools name is a registered, local-only action that an agent's
-   * instructions name, and no action's description or schema is still a TODO. Each
-   * write's line says to call it only when the visitor asks.
+   * Every agentTools name is a registered, local-only action, and no action's description
+   * or schema is still a TODO. Each write's description says to call it only when the
+   * visitor asks, and the reservation says to read the basket version first.
    */
   static async testActionsMatchManifest() {
     const loaded = await SiteHarness.load();
@@ -255,35 +255,19 @@ class AgentifiedSiteTest {
       const words = JSON.stringify([entry.description, entry.inputSchema]);
       assert.ok(!words.includes("TODO"), `The ${entry.name} action still has a TODO in its description or schema.`);
     }
-    // A specialist can own a website tool, so read every agent's lines.
-    const lines = [];
-    for (const agent of loaded.network.config.tools || []) {
-      const spec = loaded.network.getAgentSpec(agent.name);
-      if (spec && typeof spec.instructions === "string") {
-        lines.push(...spec.instructions.split("\n"));
-      }
-    }
     for (const name of loaded.manifest.actions.agentTools) {
       assert.ok(registered.has(name), `agentTools lists ${name}, but it is not registered.`);
       assert.equal(registered.get(name).availability, "local-only");
-      // Each tool has a "How to work" line, and a write runs with no dialog, so its line
-      // says to call it only when the visitor asks. The pattern skips longer names that
-      // start the same way.
-      const pattern = new RegExp(`website_${name}(?![\\w-])`);
-      let named = false;
-      let onlyWhenAsked = false;
-      for (const line of lines) {
-        if (pattern.test(line)) {
-          named = true;
-          onlyWhenAsked = onlyWhenAsked || line.includes("only when the visitor asks");
-        }
-      }
-      assert.ok(named, `No agent's instructions name website_${name}.`);
+      // A write runs with no dialog.
       if (registered.get(name).effect === "write") {
-        assert.ok(onlyWhenAsked, `The line for website_${name} does not say to call it only when the visitor asks.`);
+        assert.ok(registered.get(name).description.includes("only when the visitor asks"), `The description of ${name} does not say to call it only when the visitor asks.`);
       }
     }
     assert.equal(registered.size, loaded.manifest.actions.agentTools.length);
+    // Results from earlier turns are not kept, so the basket version is read again.
+    assert.ok(registered.get(IRREVERSIBLE_ACTION).description.includes("first call website_get_tours_state and wait for its result"));
+    // The site cannot check a child's age against a trip's age limit, so the agent does.
+    assert.ok(registered.get("find_departures").description.includes("check each child against it before you offer or add a trip"));
   }
 
   /**
@@ -310,9 +294,12 @@ class AgentifiedSiteTest {
     assert.equal(model.toolResults(1)[0].status, "succeeded");
     assert.match(result.text, /found/);
     // Every model call sends the system prompt (the instructions and the runtime's
-    // notes) and every tool's definition.
+    // notes) and every tool's definition, so both count toward one budget.
     const sent = model.calls[0];
-    t.diagnostic(`Each model call sends ${sent.messages[0].content.length} characters of system prompt and ${JSON.stringify(sent.tools).length} of tool definitions.`);
+    const prompt = sent.messages[0].content.length;
+    const tools = JSON.stringify(sent.tools).length;
+    t.diagnostic(`Each model call sends ${prompt} characters of system prompt and ${tools} of tool definitions.`);
+    assert.ok(prompt + tools <= CALL_BUDGET, `Each model call sends ${prompt + tools} characters, more than ${CALL_BUDGET}. Shorten the instructions or the tool descriptions.`);
   }
 
   /**

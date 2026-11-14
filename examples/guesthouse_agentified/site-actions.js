@@ -131,7 +131,7 @@ class SiteActions {
   static readStateAction() {
     return {
       name: "get_guesthouse_state",
-      description: "Read the rooms (beds, guest limit, rates, amenities, access, pets), extras, fees, stay limits, arrival times, cancellation fees, today's date, the home page's facts (contact, payment, changing a booking, tours, getting here, demo note) and the page's state: the stay in the booking form with its total, the last search on the page, the latest booking made in this tab and the booking Manage my booking shows. It does not show other guests' bookings or which rooms are free.",
+      description: "Read the rooms (beds, guest limit, rates, amenities, access, pets), extras, fees, stay limits, arrival times, cancellation fees, today's date, the home page's facts (contact, payment, changing a booking, tours, getting here, demo note) and the page's state: the stay in the booking form with its total, the last search on the page, the latest booking made in this tab and the booking Manage my booking shows. It does not show other guests' bookings or which rooms are free. Work out dates from today's date here. Call it again in each turn that needs it: the visitor can also use the page.",
       effect: "read",
       inputSchema: {
         type: "object",
@@ -159,7 +159,7 @@ class SiteActions {
   static readPoliciesAction() {
     return {
       name: "get_house_policies",
-      description: "Read the house policies page: check-in and check-out, length of stay, cancellation and changes, fees and payment, pets, quiet hours, children and who counts as a guest, and accessibility. Returns each section's text, table rows and links.",
+      description: "Read the house policies page: check-in and check-out, length of stay, cancellation and changes, fees and payment, pets, quiet hours, children and who counts as a guest, and accessibility. Returns each section's text, table rows and links. When children come, call it with your first read: it says who counts as a guest.",
       effect: "read",
       inputSchema: {
         type: "object",
@@ -252,7 +252,7 @@ class SiteActions {
   static fillBookingFormAction() {
     return {
       name: "fill_booking_form",
-      description: "Put a stay (room, dates, guests and extras) in the booking form on the page and show its price there, so the visitor can finish the booking on the page. Replaces the stay already in the form, but not the visitor's name or contact details. It does not book. Returns the form's new stay and total, or ok false with the site's reason, changing nothing.",
+      description: "Call it only when the visitor asks to fill the booking form. Put a stay (room, dates, guests and extras) in the booking form on the page and show its price there, so the visitor can finish the booking on the page. Replaces the stay already in the form, but not the visitor's name or contact details. It does not book. Returns the form's new stay and total, or ok false with the site's reason, changing nothing.",
       // "write" runs immediately. The visitor can change or clear the form on the page.
       effect: "write",
       inputSchema: {
@@ -358,7 +358,7 @@ class SiteActions {
     };
     return {
       name: "place_booking",
-      description: "Book a stay. The browser asks the visitor to confirm first. Nothing is paid online: guests pay at the guesthouse. Returns the booking with its confirmation code.",
+      description: "Book a stay. First ask for any missing room, dates, guests, name, email or arrival time. In the turn you call it, first call website_get_house_policies and wait for its result: it says what goes in special requests. The browser asks the visitor to confirm. Nothing is paid online: guests pay at the guesthouse. Returns the booking with its confirmation code.",
       // "irreversible" makes the runtime open a confirmation dialog before execute runs.
       effect: "irreversible",
       inputSchema: {
@@ -390,7 +390,7 @@ class SiteActions {
   static cancelBookingAction() {
     return {
       name: "cancel_booking",
-      description: "Cancel a booking under the cancellation policy. The site refuses if today's fee differs from expectedFeeCents. The browser asks the visitor to confirm first. Returns the cancelled booking and the page's note on its fee.",
+      description: "Cancel a booking under the cancellation policy. In the turn you call it, first call website_look_up_booking and wait for its result: this needs today's fee, and results from earlier turns are not kept. The site refuses if today's fee differs from expectedFeeCents. The browser asks the visitor to confirm. Returns the cancelled booking and the page's note on its fee.",
       effect: "irreversible",
       inputSchema: {
         type: "object",
