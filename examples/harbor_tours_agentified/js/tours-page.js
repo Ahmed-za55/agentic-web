@@ -33,6 +33,7 @@ export class ToursPage {
     payment: "payment-note",
     changesAndCancelling: "manage-note",
     staying: "staying-note",
+    eating: "eating-note",
     contact: "contact-line",
     hours: "hours-line",
   };

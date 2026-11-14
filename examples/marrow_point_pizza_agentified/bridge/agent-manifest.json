@@ -1,0 +1,10 @@
+{
+  "networks": [
+    {
+      "name": "little_oven_pizza"
+    }
+  ],
+  "actions": {
+    "version": 1
+  }
+}

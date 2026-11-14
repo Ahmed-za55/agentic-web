@@ -768,7 +768,7 @@ class AgentifiedSiteTest {
       assert.ok(instructions.includes("always give its link from website_"));
       assert.ok(instructions.includes("is empty or starts with \"The user declined\", \"Skipped\" or \"Error from\", it did not answer: say so."));
     }
-    assert.ok(instructions.includes("This site cannot take payment online, change a booking, send confirmation emails, sell gift cards, book tours or arrange airport pickup."));
+    assert.ok(instructions.includes("This site cannot take payment online, change a booking, send confirmation emails, sell gift cards, book tours, order food or arrange airport pickup."));
   }
 
   /**
@@ -1470,7 +1470,7 @@ class AgentifiedSiteTest {
       ],
     });
     // The stub has no page text, so a browser check covers the facts' words and links.
-    assert.deepEqual(Object.keys(state.pageFacts), ["about", "demo", "rooms", "payment", "changes", "tours", "travel", "contact", "phoneHours"]);
+    assert.deepEqual(Object.keys(state.pageFacts), ["about", "demo", "rooms", "payment", "changes", "tours", "food", "travel", "contact", "phoneHours"]);
     assert.deepEqual(state.bookingForm, {
       roomId: "",
       checkIn: "",

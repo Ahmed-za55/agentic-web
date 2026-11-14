@@ -81,7 +81,8 @@ export class ChromeLauncher {
       `--user-data-dir=${this.profile}`,
       // Chrome sends loopback traffic directly and everything else to this closed port.
       "--proxy-server=http://127.0.0.1:9",
-      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost",
+      // The rule names the IPv6 loopback without brackets: "EXCLUDE [::1]" does not match it.
+      "--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost, EXCLUDE ::1",
       "--disable-background-networking",
       "--disable-component-update",
       "--disable-sync",

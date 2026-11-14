@@ -922,7 +922,7 @@ class NetworkBuilder {
       return null;
     }
     if (url.protocol === "http:" && !NetworkBuilder.LOOPBACK_HOSTS.includes(url.hostname)) {
-      this.errors.push(`${agentName}: partner ${ref} uses http. Use https for every host but localhost and 127.0.0.1.`);
+      this.errors.push(`${agentName}: partner ${ref} uses http. Use https for every host but localhost, 127.0.0.1 and [::1].`);
     }
     // The model and the consent card see the tool under this name (runtime/runner.js, buildToolTable).
     const toolName = this.runtime.safeName(this.runtime.parseExternalAgent(ref, url.origin).agentName);

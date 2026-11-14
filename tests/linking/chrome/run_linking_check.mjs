@@ -1,10 +1,10 @@
-// Runs the two-host headless Chrome check of linked sites with a mock router, then stops
-// every process it started.
+// Runs the headless Chrome check of linked sites, each on its own host name, with a mock
+// router, then stops every process it started.
 //
 // Usage, from the repository root:
 //   node tests/linking/chrome/run_linking_check.mjs [--chrome <path>]
-//        [--direction both|caller-to-gh|gh-to-tours|tours-to-gh] [--same-host] [--no-bridge]
-//        [--guesthouse <folder>] [--tours <folder>] [--out <folder>]
+//        [--direction both|<direction>] [--same-host] [--no-bridge]
+//        [--guesthouse <folder>] [--tours <folder>] [--pizza <folder>] [--out <folder>]
 //
 // It serves each site with the skill's serve_site.mjs on its local address, runs the router
 // on 127.0.0.1:8791 and Chrome's DevTools on port 9782, and writes its output to a new temp
@@ -17,7 +17,8 @@ import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { AgentNetwork } from "../../../skills/agentify-website/runtime/kernel.js";
+import { AgentNetwork, parseExternalAgent } from "../../../skills/agentify-website/runtime/kernel.js";
+import { safeName } from "../../../skills/agentify-website/runtime/runner.js";
 import { CdpClient } from "./cdp_client.mjs";
 import { ChromeLauncher } from "./chrome_launcher.mjs";
 import { LinkCallRun } from "./link_call_run.mjs";
@@ -28,7 +29,7 @@ import { PageScripts } from "./page_scripts.mjs";
  * Starts the sites, the router and Chrome, runs the cases, writes the report, and stops
  * everything, also on failure or Ctrl+C.
  *
- * Each direction runs C1 (C4 when the tour site calls), C2 and C3, and C7 with
+ * Each direction runs C1 (C4 when an example site calls), C2 and C3, and C7 with
  * --same-host. Each served site then gets C5 and C6, and C8 runs last with --no-bridge,
  * for the first direction. A direction skips, with the reason, only while the real tour
  * site does not exist. A direction whose sites are not linked fails. The exit code is 0
@@ -77,23 +78,34 @@ class LinkingCheck {
   static RUN_TIMEOUT_MS = 600000;
 
   /**
-   * Each site's port and the host name it is opened as. Every server binds 127.0.0.1.
+   * Each site's port, the address its server binds and the host name it is opened as.
+   * Linked sites use different host names, so the runtime's key cookie for one host
+   * (runtime/byok.js) never goes to a partner.
    */
   static SITES = {
     guesthouse: {
       port: 8080,
+      bind: "127.0.0.1",
       host: "127.0.0.1",
       title: "guesthouse",
     },
     tours: {
       port: 8081,
+      bind: "127.0.0.1",
       host: "localhost",
       title: "tour site",
     },
     caller: {
       port: 8082,
+      bind: "127.0.0.1",
       host: "localhost",
       title: "fixture caller",
+    },
+    pizza: {
+      port: 8083,
+      bind: "::1",
+      host: "[::1]",
+      title: "pizza site",
     },
   };
 
@@ -123,6 +135,34 @@ class LinkingCheck {
       message: "Where can we stay in Marrow Point from 12 to 14 June?",
       request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
     },
+    "gh-to-pizza": {
+      caller: "guesthouse",
+      partner: "pizza",
+      partnerUrl: "http://[::1]:8083/little_oven_pizza",
+      message: "Where can we get dinner near the harbor on our first night?",
+      request: "What pizzas do you have, and can we order for pickup or delivery?",
+    },
+    "pizza-to-gh": {
+      caller: "pizza",
+      partner: "guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      message: "Is there somewhere to stay near you from 12 to 14 June?",
+      request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
+    },
+    "tours-to-pizza": {
+      caller: "tours",
+      partner: "pizza",
+      partnerUrl: "http://[::1]:8083/little_oven_pizza",
+      message: "Where can we eat after the evening sail?",
+      request: "What pizzas do you offer, and when are you open?",
+    },
+    "pizza-to-tours": {
+      caller: "pizza",
+      partner: "tours",
+      partnerUrl: "http://localhost:8081/marrow_point_harbor_tours",
+      message: "Is there a boat trip we could take before dinner on 13 June?",
+      request: "Is there a boat trip for two adults on 13 June, and what does it cost?",
+    },
   };
 
   /**
@@ -131,11 +171,12 @@ class LinkingCheck {
   static USAGE = [
     "Usage: node tests/linking/chrome/run_linking_check.mjs [options]",
     "  --chrome <path>      The Chrome binary. Default: CHROME, then the usual install paths.",
-    "  --direction <name>   both (default), caller-to-gh, gh-to-tours or tours-to-gh.",
+    "  --direction <name>   both (default, every direction), caller-to-gh, gh-to-tours, tours-to-gh, gh-to-pizza, pizza-to-gh, tours-to-pizza or pizza-to-tours.",
     "  --same-host          Also run C7: open the caller under the partner's host name and report whether the key cookie reached the partner.",
     "  --no-bridge          Also run C8 for the first direction: serve the partner without its bridge and report the 10-second wait and the popup offer.",
     "  --guesthouse <dir>   The guesthouse to serve. Default: examples/guesthouse_agentified.",
     "  --tours <dir>        The tour site to serve. Default: examples/harbor_tours_agentified, else tests/linking/fixtures/partner_site.",
+    "  --pizza <dir>        The pizza site to serve. Default: examples/marrow_point_pizza_agentified.",
     "  --out <dir>          Where the report and logs go. Default: a new temp folder. Never inside the repository.",
   ].join("\n");
 
@@ -177,6 +218,7 @@ class LinkingCheck {
       noBridge: false,
       guesthouse: null,
       tours: null,
+      pizza: null,
       out: null,
       help: false,
     };
@@ -185,6 +227,7 @@ class LinkingCheck {
       "--direction": "direction",
       "--guesthouse": "guesthouse",
       "--tours": "tours",
+      "--pizza": "pizza",
       "--out": "out",
     };
     let index = 0;
@@ -317,7 +360,7 @@ class LinkingCheck {
       return 2;
     }
     this.say(`Output: ${this.out}`);
-    for (const role of ["guesthouse", "tours", "caller"]) {
+    for (const role of Object.keys(LinkingCheck.SITES)) {
       this.say(`Site ${role}: ${sites[role].folder}${sites[role].real ? "" : " (test site)"}`);
     }
     for (const direction of directions) {
@@ -373,6 +416,10 @@ class LinkingCheck {
       caller: {
         folder: path.join(LinkingCheck.REPO, "tests", "linking", "fixtures", "caller_site"),
         real: false,
+      },
+      pizza: {
+        folder: path.resolve(this.options.pizza || path.join(LinkingCheck.REPO, "examples", "marrow_point_pizza_agentified")),
+        real: true,
       },
     };
   }
@@ -596,7 +643,7 @@ class LinkingCheck {
       script,
       folder,
       "--host",
-      "127.0.0.1",
+      site.bind,
       "--port",
       String(site.port),
       "--open-as",
@@ -780,7 +827,7 @@ class LinkingCheck {
   async runCases(directions, roles) {
     for (const direction of directions) {
       const context = await this.directionContext(direction);
-      await this.caseAllowed(context, direction.name === "tours-to-gh" ? "C4" : "C1", LinkingCheck.VISITOR_MODEL);
+      await this.caseAllowed(context, direction.spec.caller === "caller" ? "C1" : "C4", LinkingCheck.VISITOR_MODEL);
       await this.caseAllowed(context, "C2", "");
       await this.caseDecline(context);
       if (this.options.sameHost) {
@@ -808,13 +855,16 @@ class LinkingCheck {
     const partner = await LinkingCheck.readSite(this.served[spec.partner]);
     const callerSite = LinkingCheck.SITES[spec.caller];
     const partnerSite = LinkingCheck.SITES[spec.partner];
+    const callerOrigin = `http://${callerSite.host}:${callerSite.port}`;
     return {
       name: direction.name,
       title: `${callerSite.title} -> ${partnerSite.title}`,
       spec: spec,
       callerRole: spec.caller,
       partnerRole: spec.partner,
-      callerUrl: `http://${callerSite.host}:${callerSite.port}/`,
+      // A site with several partners offers several partner tools: the router calls this one.
+      tool: safeName(parseExternalAgent(spec.partnerUrl, callerOrigin).agentName),
+      callerUrl: `${callerOrigin}/`,
       callerHost: `${callerSite.host}:${callerSite.port}`,
       callerPort: callerSite.port,
       partnerOrigin: `http://${partnerSite.host}:${partnerSite.port}`,
@@ -840,6 +890,7 @@ class LinkingCheck {
    */
   async visitorTurn(context, model, decision, callerUrl) {
     this.router.use(context.spec.request, 1);
+    this.router.aim(context.tool, null);
     const since = Date.now();
     const run = new LinkCallRun(this.client, LinkingCheck.KEY);
     let error = null;
@@ -1210,6 +1261,13 @@ class LinkingCheck {
    * :param context: The direction context.
    */
   async caseSameHost(context) {
+    const callerBind = LinkingCheck.SITES[context.callerRole].bind;
+    const partnerBind = LinkingCheck.SITES[context.partnerRole].bind;
+    if (callerBind !== partnerBind) {
+      // The caller's server cannot answer under a host name on another address.
+      await this.record("C7", context.name, "skipped", [], [`the caller's server listens on ${callerBind} and the partner's on ${partnerBind}`]);
+      return;
+    }
     const url = `http://${context.partnerHostname}:${context.callerPort}/`;
     const evidence = await this.visitorTurn(context, LinkingCheck.VISITOR_MODEL, "allow", url);
     let browserCookie = 0;

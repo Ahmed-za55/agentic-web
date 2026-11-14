@@ -556,7 +556,7 @@ class BasketActionsTest {
     assert.equal(state.tours[2].prices, "Adults $55.00, children $40.00.");
     assert.equal(state.harborDuesPerPassenger, "$1.50");
     // The stand-in has no page text: check the facts' content in a browser.
-    assert.deepEqual(Object.keys(state.pageFacts), ["demo", "prices", "booking", "weatherCalls", "payment", "changesAndCancelling", "staying", "contact", "hours"]);
+    assert.deepEqual(Object.keys(state.pageFacts), ["demo", "prices", "booking", "weatherCalls", "payment", "changesAndCancelling", "staying", "eating", "contact", "hours"]);
     SiteHarness.assertNoOtherRecords(state);
     // The page may stay open past midnight.
     Calendar.fixedToday = "2026-11-12";

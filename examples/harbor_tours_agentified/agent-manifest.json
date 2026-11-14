@@ -25,7 +25,8 @@
     "byok_router": "https://api.otari.ai/api/v1"
   },
   "allowed_peers": [
-    "http://127.0.0.1:8080"
+    "http://127.0.0.1:8080",
+    "http://[::1]:8083"
   ],
   "peer_policy": {
     "mode": "closed",
