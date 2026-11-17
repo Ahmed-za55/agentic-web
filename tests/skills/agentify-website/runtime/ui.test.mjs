@@ -44,6 +44,17 @@ class SettingsPanelTest {
   }
 
   /**
+   * A Google AI Studio key fills in Gemini under the name Google's model list uses. The
+   * panel checks the model against that list, so a name without "models/" is refused.
+   */
+  static testGoogleKey() {
+    const provider = providerForApiKey(SettingsPanelTest.fakeKey("AIza"));
+    assert.equal(provider?.name, "Google AI Studio");
+    assert.equal(provider.router, "https://generativelanguage.googleapis.com/v1beta/openai");
+    assert.equal(provider.model, "models/gemini-3.8-flash");
+  }
+
+  /**
    * The providers the panel knew before still match their keys.
    */
   static testOtherProviders() {
@@ -73,4 +84,5 @@ class SettingsPanelTest {
 
 test("a hosted Otari key fills in hosted Otari, the first provider", SettingsPanelTest.testHostedOtariKey);
 test("a self-hosted Otari key matches no provider", SettingsPanelTest.testSelfHostedOtariKey);
+test("a Google AI Studio key fills in Gemini under the name Google's model list uses", SettingsPanelTest.testGoogleKey);
 test("the other providers still match their keys", SettingsPanelTest.testOtherProviders);

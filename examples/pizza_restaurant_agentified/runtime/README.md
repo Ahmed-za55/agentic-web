@@ -46,11 +46,16 @@ Edited files. Each one has a line near its top saying that it was changed:
   `x-ui.enumLabels`. It groups radio buttons under a legend and links each field to its
   description for screen readers. The ⚙ AI model settings panel lists hosted Otari first,
   the template's default router, and fills in its settings for a key that starts with
-  `otk_`.
+  `otk_`. The Google AI Studio model is `models/gemini-3.8-flash`, the name Google's model
+  list uses, so the panel's model check accepts it.
 - `action-transport.js` opens the confirmation dialog with focus on its heading, so a
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
   site offers `website_*` tools.
+- `llm.js` keeps Gemini's thought signature (`extra_content`) on each streamed tool call,
+  so it goes back to the model on the next step. Gemini 3 refuses that step without it.
+  Gemini also streams each tool call whole and without an `index`, so a new call id
+  starts a new call instead of joining the one before it.
 
 This copy, in the pizza example, has one more change that the skill's copy does not have
 yet. It is the pizza example's CRUSE fix (commit `3119a8d`). `runner.js` documents each
