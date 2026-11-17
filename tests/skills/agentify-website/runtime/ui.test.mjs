@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  API_KEY_PROVIDERS,
+  providerButtons,
   providerForApiKey,
 } from "../../../../skills/agentify-website/runtime/ui.js";
 
@@ -32,7 +32,34 @@ class SettingsPanelTest {
     assert.equal(provider?.name, "Otari");
     assert.equal(provider.router, "https://api.otari.ai/api/v1");
     assert.equal(provider.model, "alibaba/qwen3.8-flash");
-    assert.equal(API_KEY_PROVIDERS[0].name, "Otari", "Otari is not the first provider button.");
+    assert.equal(providerButtons()[0].name, "Otari", "Otari is not the first provider button.");
+  }
+
+  /**
+   * An Otari EU key fills in the EU gateway, which is the only one that accepts it. A key
+   * for the default region still gets the default gateway.
+   */
+  static testEuOtariKey() {
+    const euProvider = providerForApiKey(SettingsPanelTest.fakeKey("otk_v1_eu_"));
+    assert.equal(euProvider?.name, "Otari EU");
+    assert.equal(euProvider.router, "https://eu.api.otari.ai/api/v1");
+    assert.equal(euProvider.model, "alibaba/qwen3.8-flash");
+
+    const usProvider = providerForApiKey(SettingsPanelTest.fakeKey("otk_v1_us_"));
+    assert.equal(usProvider?.name, "Otari");
+    assert.equal(usProvider.router, "https://api.otari.ai/api/v1");
+  }
+
+  /**
+   * The panel shows one Otari button. Both regions make keys on the same dashboard, so the
+   * EU entry has no button of its own.
+   */
+  static testOneOtariButton() {
+    const names = [];
+    for (const provider of providerButtons()) {
+      names.push(provider.name);
+    }
+    assert.deepEqual(names, ["Otari", "Google AI Studio", "Groq", "OpenAI", "Anthropic"]);
   }
 
   /**
@@ -83,6 +110,8 @@ class SettingsPanelTest {
 }
 
 test("a hosted Otari key fills in hosted Otari, the first provider", SettingsPanelTest.testHostedOtariKey);
+test("an Otari EU key fills in the EU gateway", SettingsPanelTest.testEuOtariKey);
+test("the panel shows one Otari button", SettingsPanelTest.testOneOtariButton);
 test("a self-hosted Otari key matches no provider", SettingsPanelTest.testSelfHostedOtariKey);
 test("a Google AI Studio key fills in Gemini under the name Google's model list uses", SettingsPanelTest.testGoogleKey);
 test("the other providers still match their keys", SettingsPanelTest.testOtherProviders);
