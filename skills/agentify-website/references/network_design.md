@@ -98,7 +98,7 @@ Each model call also sends every `website_*` tool's description and input schema
 `build_network.mjs` does not count them, but the site's test does: it fails when one model
 call sends more than 16,000 characters of system prompt and tool definitions
 (`CALL_BUDGET` in the template's test). In the agentic-web repository's
-`examples/guesthouse_agentified`, one call sends about 6,400 characters of system prompt
+`examples/guesthouse_agentified`, one call sends about 6,000 characters of system prompt
 and 9,200 of tool definitions. Keep each description to what the model needs to choose
 and call the tool, and do not add an action whose job another action already does.
 
