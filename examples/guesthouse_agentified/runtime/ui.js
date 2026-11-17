@@ -294,8 +294,9 @@ fieldset.ns-w-row{min-width:0;margin:0;padding:0;border:0}
 .ns-key-providers a{padding:6px 9px;border:1px solid var(--ns-primary,#2563eb);border-radius:6px;color:var(--ns-primary,#2563eb);font-weight:600;text-decoration:none;background:var(--ns-panelbg,#fff)}
 .ns-key-providers small{display:block;color:var(--ns-muted,#777);font-size:10px;font-weight:400;margin-top:2px}
 .ns-in-use{font-size:12px;font-weight:600;color:var(--ns-fg,#333);overflow-wrap:anywhere}
-.ns-connect{display:flex;flex-direction:column;gap:4px}
-.ns-connect .ns-hint{margin-top:0}
+.ns-start-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ns-start-actions button{align-self:center}
+.ns-or{color:var(--ns-muted,#666)}
 .ns-openrouter-key{display:flex;flex-direction:column;gap:2px}
 .ns-openrouter-key[hidden]{display:none}
 .ns-openrouter-key a{color:var(--ns-primary,#2563eb);font-weight:600}
@@ -354,10 +355,6 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
     <div class="ns-settings-body">
       <div class="ns-in-use" id="ns-in-use"></div>
       <label>Saved setup <select id="ns-profile"></select></label>
-      ${canConnect ? `<div class="ns-connect">
-        <button id="ns-connect-openrouter" type="button">Connect with OpenRouter</button>
-        <div class="ns-hint">Sign in to OpenRouter and approve a key for this site. There is nothing to copy. It uses a free model, which has a daily limit.</div>
-      </div>` : ""}
       <div class="ns-key-help"${needsByok ? "" : " hidden"}>
         <strong>Don't have an API key?</strong>
         <p>An API key is a private code from an AI provider. It lets this page use that provider for you; it is not your password.</p>
@@ -371,7 +368,12 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
         <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Manage this key on OpenRouter <span aria-hidden="true">↗</span></a>
         <div class="ns-hint">See what it spends, set a spending limit, or revoke it.</div>
       </div>
-      <button id="ns-apply">Save and start</button>
+      <div class="ns-start-actions">
+        <button id="ns-apply">Save and start</button>
+        ${canConnect ? `<span class="ns-or">or</span>
+        <button id="ns-connect-openrouter" type="button">Connect with OpenRouter</button>` : ""}
+      </div>
+      ${canConnect ? `<div class="ns-hint">Connect with OpenRouter: sign in and approve a key for this site, with nothing to copy. It uses a free model, which has a daily limit.</div>` : ""}
       <details class="ns-settings-advanced">
         <summary>Advanced settings (optional)</summary>
         <div class="ns-settings-advanced-body">
