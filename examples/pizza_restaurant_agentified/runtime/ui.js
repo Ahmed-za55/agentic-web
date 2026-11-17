@@ -25,6 +25,8 @@ import { normalizePresentation } from "./cruse.js";
 import { PRESENTATION_CSS, renderMarkdown, renderRichComponent } from "./cruse-render.js";
 import { createTurnStatusController } from "./turn-status.js";
 import { reviewActions } from "./action-transport.js";
+import { OpenRouterConnect } from "./openrouter-connect.js";
+import { InUseLine } from "./in-use-line.js";
 
 export const AI_MODEL_SETTINGS_LABEL = "AI model settings";
 export const API_KEY_HELP_URL = "https://ai.google.dev/gemini-api/docs/api-key";
@@ -54,6 +56,16 @@ export const API_KEY_PROVIDERS = [
     router: "https://api.groq.com/openai/v1",
     model: "openai/gpt-oss-120b",
     keyPrefixes: ["gsk_"],
+    accessNote: "Free tier",
+  },
+  // The Connect with OpenRouter button (openrouter-connect.js) gets a key without pasting.
+  // This entry is for a pasted OpenRouter key, and it lets the panel recognize either one.
+  {
+    name: OpenRouterConnect.NAME,
+    keyUrl: "https://openrouter.ai/settings/keys",
+    router: OpenRouterConnect.ROUTER,
+    model: OpenRouterConnect.MODEL,
+    keyPrefixes: [OpenRouterConnect.KEY_PREFIX],
     accessNote: "Free tier",
   },
   {
@@ -255,6 +267,12 @@ fieldset.ns-w-row{min-width:0;margin:0;padding:0;border:0}
 .ns-key-providers{display:flex;flex-wrap:wrap;gap:6px}
 .ns-key-providers a{padding:6px 9px;border:1px solid var(--ns-primary,#2563eb);border-radius:6px;color:var(--ns-primary,#2563eb);font-weight:600;text-decoration:none;background:var(--ns-panelbg,#fff)}
 .ns-key-providers small{display:block;color:var(--ns-muted,#777);font-size:10px;font-weight:400;margin-top:2px}
+.ns-in-use{font-size:12px;font-weight:600;color:var(--ns-fg,#333);overflow-wrap:anywhere}
+.ns-connect{display:flex;flex-direction:column;gap:4px}
+.ns-connect .ns-hint{margin-top:0}
+.ns-openrouter-key{display:flex;flex-direction:column;gap:2px}
+.ns-openrouter-key[hidden]{display:none}
+.ns-openrouter-key a{color:var(--ns-primary,#2563eb);font-weight:600}
 .ns-settings-advanced{border-top:1px solid var(--ns-border,#e2e2e2);margin-top:2px}
 .ns-settings-advanced>summary{padding:7px 0;color:var(--ns-muted,#666)}
 .ns-settings-advanced-body{display:flex;flex-direction:column;gap:6px;padding:2px 0 4px}
@@ -275,7 +293,7 @@ const KIND_TAG = {
   tool_result: "RESULT",
 };
 
-export function mountApp(root, { engine, trace, manifest }) {
+export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const style = document.createElement("style");
   style.textContent = BASE_CSS;
   document.head.appendChild(style);
@@ -286,7 +304,11 @@ export function mountApp(root, { engine, trace, manifest }) {
   const net = engine.top?.network;
   const title = manifest?.networks?.[0]?.description || net?.name || "Agent network";
   const needsByok = !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo");
-  const setupMessage = `To start, add an AI provider key. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, choose a provider, create a key on its site, and paste it into the API key field. Then select Save and start. Your key is saved in this browser.`;
+  // The Connect button needs an https page (or this computer's own address) in its own tab.
+  const canConnect = OpenRouterConnect.isAvailable();
+  const setupMessage = canConnect
+    ? `To start, connect an AI provider. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, select Connect with OpenRouter. Or choose a provider, create a key on its site, paste it into the API key field and select Save and start. Your key is saved in this browser.`
+    : `To start, add an AI provider key. In ⚙ ${AI_MODEL_SETTINGS_LABEL}, choose a provider, create a key on its site, and paste it into the API key field. Then select Save and start. Your key is saved in this browser.`;
   const chatSlot = root.querySelector('[data-ns-slot="chat"]');
   const agentsSlot = root.querySelector('[data-ns-slot="agents"]');
   const activitySlot = root.querySelector('[data-ns-slot="activity"]');
@@ -294,11 +316,22 @@ export function mountApp(root, { engine, trace, manifest }) {
   // Prompt v13 gives themes a dedicated settings mount. Older composed themes and
   // the fixed shell have no such slot, so their settings stay beneath the chat.
   const settingsSlot = composed ? root.querySelector('[data-ns-slot="settings"]') : null;
-  const providerLinksHtml = API_KEY_PROVIDERS.map((provider) => `
-        <a href="${provider.keyUrl}" target="_blank" rel="noopener noreferrer" data-ns-provider="${provider.name}" data-router="${provider.router}" data-model="${provider.model}">${provider.name} <span aria-hidden="true">↗</span><small>${provider.accessNote}</small></a>`).join("");
+  let providerLinksHtml = "";
+  for (const provider of API_KEY_PROVIDERS) {
+    // Where the Connect button works, it is how a visitor adds OpenRouter, so OpenRouter
+    // gets no second button that opens its keys page.
+    if (canConnect && provider.name === OpenRouterConnect.NAME) continue;
+    providerLinksHtml += `
+        <a href="${provider.keyUrl}" target="_blank" rel="noopener noreferrer" data-ns-provider="${provider.name}" data-router="${provider.router}" data-model="${provider.model}">${provider.name} <span aria-hidden="true">↗</span><small>${provider.accessNote}</small></a>`;
+  }
   const settingsBodyHtml = `
     <div class="ns-settings-body">
+      <div class="ns-in-use" id="ns-in-use"></div>
       <label>Saved setup <select id="ns-profile"></select></label>
+      ${canConnect ? `<div class="ns-connect">
+        <button id="ns-connect-openrouter" type="button">Connect with OpenRouter</button>
+        <div class="ns-hint">Sign in to OpenRouter and approve a key for this site. There is nothing to copy. It uses a free model, which has a daily limit.</div>
+      </div>` : ""}
       <div class="ns-key-help"${needsByok ? "" : " hidden"}>
         <strong>Don't have an API key?</strong>
         <p>An API key is a private code from an AI provider. It lets this page use that provider for you; it is not your password.</p>
@@ -308,6 +341,10 @@ export function mountApp(root, { engine, trace, manifest }) {
         <div class="ns-hint">Free tiers have usage limits and may vary by region. Other providers may require billing.</div>
       </div>
       <label><span>API key <span aria-hidden="true">*</span></span><input id="ns-key" type="password" autocomplete="off" placeholder="Paste your API key" required aria-required="true"></label>
+      <div class="ns-openrouter-key" hidden>
+        <a href="https://openrouter.ai/settings/keys" target="_blank" rel="noopener noreferrer">Manage this key on OpenRouter <span aria-hidden="true">↗</span></a>
+        <div class="ns-hint">See what it spends, set a spending limit, or revoke it.</div>
+      </div>
       <button id="ns-apply">Save and start</button>
       <details class="ns-settings-advanced">
         <summary>Advanced settings (optional)</summary>
@@ -945,8 +982,11 @@ export function mountApp(root, { engine, trace, manifest }) {
   const providerLinks = root.querySelectorAll("[data-ns-provider]");
   // The help is for visitors without a key, so it hides while the key field has one.
   const keyHelpEl = root.querySelector(".ns-key-help");
+  // An OpenRouter key, connected or pasted, gets a link to its settings page on OpenRouter.
+  const openRouterKeyEl = root.querySelector(".ns-openrouter-key");
   const refreshKeyHelp = () => {
     if (keyHelpEl) keyHelpEl.hidden = keyEl.value.trim().length > 0;
+    OpenRouterConnect.refreshKeyLink(keyEl, openRouterKeyEl);
   };
   // The compiled LLM may already point at BYOK after a saved-profile upgrade.
   // New manifests identify an opt-in mock separately; retain compatibility with
@@ -955,6 +995,20 @@ export function mountApp(root, { engine, trace, manifest }) {
     || (manifest?.llm_router?.mock ? manifest?.llm_router?.base_url : "");
   const byokRouter = engine.byokRouter || "";
   const staticMode = manifest?.deployment?.mode === "static";
+  // Name the provider, model and key the chat uses now (in-use-line.js). The router is the
+  // one the chat calls, after the setup and any upgrade from the mock router.
+  const activeRouter = engine.top?.llm?.baseUrl || "";
+  const inUseEl = root.querySelector("#ns-in-use");
+  inUseEl.textContent = InUseLine.text({
+    mock: engine.mockLLM,
+    key: engine.byokKey,
+    router: activeRouter,
+    model: engine.modelOverride,
+    siteModel: effectiveModel("", frontSpec?.llm_config?.model_name, net?.config?.llm_config?.model_name),
+    providers: API_KEY_PROVIDERS,
+    viaThisSite: !staticMode && !!byokRouter && resolveByokRouter(activeRouter) === resolveByokRouter(byokRouter),
+  });
+  inUseEl.title = activeRouter;
   // Without a visitor-chosen model, each agent sends its declared model, then the
   // network's, or else the mock placeholder. Check the same model the runner sends.
   let everyAgentHasModel = true;
@@ -981,6 +1035,7 @@ export function mountApp(root, { engine, trace, manifest }) {
   // The provider whose settings the form holds. Another key from the same provider
   // does not fill in that provider's defaults again.
   let formProvider = providerForApiKey(keyEl.value);
+  OpenRouterConnect.refreshKeyLink(keyEl, openRouterKeyEl);
   profileNameEl.value = selectedProfile?.name || "";
 
   const profileStorageText = canUseByokCookie()
@@ -1241,6 +1296,13 @@ export function mountApp(root, { engine, trace, manifest }) {
       applyProviderDefaults(provider, `${provider.name} selected. Create a key in the new tab, then paste it here.`);
     });
   });
+  // Connect with OpenRouter leaves this page. When OpenRouter sends the visitor back,
+  // boot() finishes the sign-in before this panel is built (openrouter-connect.js).
+  const keyLabel = OpenRouterConnect.keyLabel(manifest?.brand || net?.name || "");
+  root.querySelector("#ns-connect-openrouter")?.addEventListener(
+    "click",
+    OpenRouterConnect.connect.bind(OpenRouterConnect, keyLabel, setProfileHint),
+  );
   profileEl.addEventListener("change", () => {
     const id = profileEl.value;
     profileStore = selectByokProfile(id);
@@ -1269,6 +1331,13 @@ export function mountApp(root, { engine, trace, manifest }) {
   });
   refreshHint();
   if (needsByok) setProfileHint(setupMessage, "warn");
+  // Report the OpenRouter sign-in that boot() finished before this panel existed.
+  if (connect) {
+    const connected = connect.status === "connected";
+    setProfileHint(connect.message, connected ? "" : "warn");
+    addBubble(msgs, "bot", connected ? connect.message : `⚠️ ${connect.message}`);
+    if (!connected) root.querySelector(".ns-settings").open = true;
+  }
 
   root.querySelector("#ns-apply").addEventListener("click", async () => {
     const p = new URLSearchParams(location.search);

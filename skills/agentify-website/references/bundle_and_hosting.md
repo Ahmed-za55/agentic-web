@@ -205,7 +205,8 @@ It sends the headers that "Static hosting" below lists. `python3 -m http.server`
 for one site but sends no CORS header, so other sites cannot call it.
 
 Open http://127.0.0.1:8080/, expand **⚙ AI model settings**, and paste an API key for
-the site's default provider. For another provider, select it in the panel, which fills
+the site's default provider. Or select **Connect with OpenRouter** to sign in to
+OpenRouter instead of pasting a key. For another provider, select it in the panel, which fills
 in its provider URL and model, or enter both under **Advanced settings (optional)**. Then
 select **Save and start**. There, fill in the provider URL before the model, or type a
 setup name: the runtime names the setup from both fields when the model is typed

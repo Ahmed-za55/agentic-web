@@ -55,6 +55,17 @@ class SettingsPanelTest {
   }
 
   /**
+   * An OpenRouter key, pasted or from Connect with OpenRouter, fills in OpenRouter and its
+   * free default model.
+   */
+  static testOpenRouterKey() {
+    const provider = providerForApiKey(SettingsPanelTest.fakeKey("sk-or-v1-"));
+    assert.equal(provider?.name, "OpenRouter");
+    assert.equal(provider.router, "https://openrouter.ai/api/v1");
+    assert.equal(provider.model, "google/gemma-4-31b-it:free");
+  }
+
+  /**
    * The providers the panel knew before still match their keys.
    */
   static testOtherProviders() {
@@ -85,4 +96,5 @@ class SettingsPanelTest {
 test("a hosted Otari key fills in hosted Otari, the first provider", SettingsPanelTest.testHostedOtariKey);
 test("a self-hosted Otari key matches no provider", SettingsPanelTest.testSelfHostedOtariKey);
 test("a Google AI Studio key fills in Gemini under the name Google's model list uses", SettingsPanelTest.testGoogleKey);
+test("an OpenRouter key fills in OpenRouter", SettingsPanelTest.testOpenRouterKey);
 test("the other providers still match their keys", SettingsPanelTest.testOtherProviders);

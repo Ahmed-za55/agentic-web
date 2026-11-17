@@ -16,8 +16,12 @@ import { Engine } from "./engine.js";
 import { TraceBus } from "./trace.js";
 import { mountApp } from "./ui.js";
 import { getSelectedByokProfile, loadTabByokSetup } from "./byok.js";
+import { OpenRouterConnect } from "./openrouter-connect.js";
 
 export async function boot(rootSelector = "#app", opts = {}) {
+  // Finish an OpenRouter sign-in first. It takes the one-time code out of the address
+  // and saves the new key, so the URL and the setup read below are the final ones.
+  const connect = await OpenRouterConnect.finish();
   const root = typeof rootSelector === "string" ? document.querySelector(rootSelector) : rootSelector;
   if (!root) throw new Error("Agent widget mount not found.");
   root.setAttribute("data-nsdeploy-ui", "");
@@ -62,7 +66,12 @@ export async function boot(rootSelector = "#app", opts = {}) {
       && (runnerChoice === "langchain" || runnerChoice === "langgraph")) {
     await engine.enableLangChain();
   }
-  mountApp(root, { engine, trace, manifest });
+  mountApp(root, {
+    engine,
+    trace,
+    manifest,
+    connect,
+  });
   {
     const status = document.createElement("details");
     status.className = "ns-action-status";
