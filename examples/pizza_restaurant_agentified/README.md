@@ -96,12 +96,18 @@ Adapted from that bundle:
   the restaurant. It enriches each local agent specification with a fresh
   `getRestaurantState()` snapshot, including the menu, cart, version and latest
   order. It also adds the actual cart and formatted total to checkout review.
+- `chat-follow.js`: keeps the newest chat message in view. The chat grows with the
+  page and its message box sticks to the bottom of the screen, so the page scrolls
+  to each new message, but only when the visitor is already at the end of the chat.
 
 Restaurant integration:
 
 - `index.html` and `styles.css`: retain the restaurant and add a responsive
   assistant section using the runtime's header, chat and agent slots. The
   generated full-page HTML and global theme stylesheet are omitted.
+- `fonts/`, `img/` and `favicon.svg`: the fonts, menu pictures and site icon
+  that `styles.css` uses, so the page loads nothing from other servers. The
+  fonts come with their SIL Open Font License files.
 - `script.js`: keeps the menu and cart rendering and exports
   `getRestaurantState()`, `setCart(items)` and `submitOrder(details)`. Both manual
   and assistant checkout use `submitOrder`, including validation and rendering.

@@ -1,5 +1,6 @@
 import { boot } from "./runtime/index.js";
 import { getRestaurantState } from "./script.js";
+import { ChatFollow } from "./chat-follow.js";
 
 const status = document.querySelector("#assistant-status");
 const siteBase = new URL("./", import.meta.url).href;
@@ -9,6 +10,8 @@ try {
     originUrl: siteBase,
     sandboxWorkerUrl: new URL("runtime/sandbox-worker.js", siteBase).href,
   });
+  // The chat grows with the page, so the page scrolls to show new messages.
+  ChatFollow.start(document.querySelector("#agent-app"));
   const reviewActions = engine.onActionConfirm;
   engine.onActionConfirm = items => reviewActions(items.map(item => {
     if (item.action !== "checkout_demo_order") return item;
