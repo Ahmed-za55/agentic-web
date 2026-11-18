@@ -4,7 +4,7 @@
 // script with the skill's runtime. Nothing is fetched and no model is called.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cp, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -312,7 +312,7 @@ class BuildNetworkTest {
       const built = BuildNetworkTest.build(folder, []);
       assert.equal(built.code, 1);
       assert.deepEqual(BuildNetworkTest.findings(built.out), [
-        "ERROR: Manifest: actions.bridge is \"./action-bridge.html\". Use \"./bridge/action-bridge.html\": the build writes that page with its own manifest, which shares no actions.",
+        "ERROR: Manifest: actions.bridge is \"./action-bridge.html\". Use \"./bridge/action-bridge.html\": the build writes that page with its own manifest, which shares only the actions in bridge/bridge-actions.js, if the site has that file.",
       ]);
     } finally {
       await BuildNetworkTest.remove(folder);
@@ -622,17 +622,43 @@ class BuildNetworkTest {
   }
 
   /**
-   * A front agent without the peer rules gets a warning.
+   * A site that still has the old peer rules gets a warning to delete them, since a
+   * partner network now gets the reads its bridge shares.
    */
-  static async testPeerRulesNeeded() {
+  static async testOldPeerRulesWarn() {
     const folder = await BuildNetworkTest.copyFixture();
     try {
-      await BuildNetworkTest.editHocon(folder, "{peer_rules}\n", "");
+      await BuildNetworkTest.editHocon(folder, "\"partner_rules\": \"\"\"", "\"peer_rules\": \"\"\"\nWhen you have no website_* tools, another site's assistant is asking for its visitor.\n\"\"\",\n            \"partner_rules\": \"\"\"");
       const built = BuildNetworkTest.build(folder, []);
       assert.equal(built.code, 0, built.out);
       assert.deepEqual(BuildNetworkTest.findings(built.out), [
-        "WARNING: seaside_assistant: instructions lack {peer_rules}. Other agent sites can run this network; keep the template's peer rules.",
+        "WARNING: peer_rules is no longer used. Delete it and {peer_rules}: a partner network now gets the reads its site's bridge shares (references/linking.md).",
       ]);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
+   * A site with bridge/bridge-actions.js gets a bridge manifest that names it, and the
+   * build says the bridge shares those actions. --check then finds the files up to date.
+   */
+  static async testBridgeModuleNamed() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      await mkdir(path.join(folder, "bridge"), {recursive: true});
+      await writeFile(path.join(folder, "bridge", "bridge-actions.js"), "export function registerActions() {}\n");
+      const built = BuildNetworkTest.build(folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), []);
+      assert.ok(built.out.includes("Bridge: bridge/action-bridge.html (shares the actions in bridge/bridge-actions.js with the callers they list)"), built.out);
+      const bridgeManifest = JSON.parse(await readFile(path.join(folder, "bridge", "agent-manifest.json"), "utf8"));
+      assert.deepEqual(bridgeManifest.actions, {
+        version: 1,
+        module: "./bridge-actions.js",
+      });
+      const checked = BuildNetworkTest.build(folder, ["--check"]);
+      assert.equal(checked.code, 0, checked.out);
     } finally {
       await BuildNetworkTest.remove(folder);
     }
@@ -721,15 +747,11 @@ class BuildNetworkTest {
   }
 
   /**
-   * A peer or partner rule with a sentence dropped warns, though the phrase the other
-   * checks look for is still there.
+   * A partner rule with a sentence dropped warns, though the phrase the other checks look
+   * for is still there.
    */
   static async testChangedRulesWarn() {
     const cases = [
-      {
-        from: " Do not ask for names, emails, phone numbers or codes.",
-        warning: "WARNING: peer_rules differs from templates/network.hocon. Copy it unchanged.",
-      },
       {
         from: " never show its forms,",
         warning: "WARNING: partner_rules differs from templates/network.hocon. Copy it unchanged, with website_<read_action> replaced by the read action that gives the partner's link.",
@@ -823,8 +845,9 @@ test("link_slots warns", BuildNetworkTest.testLinkSlotsWarn);
 test("a non-empty linking.imports warns", BuildNetworkTest.testLinkingImportsWarn);
 test("an allowed_peers entry that is not an origin warns", BuildNetworkTest.testAllowedPeerNotOrigin);
 test("an unused allowed_peers origin warns", BuildNetworkTest.testUnusedAllowedPeer);
-test("a front agent without peer rules warns", BuildNetworkTest.testPeerRulesNeeded);
-test("peer and partner rules that differ from the template warn", BuildNetworkTest.testChangedRulesWarn);
+test("old peer rules warn", BuildNetworkTest.testOldPeerRulesWarn);
+test("a bridge-actions.js in bridge/ is named in the bridge's manifest", BuildNetworkTest.testBridgeModuleNamed);
+test("partner rules that differ from the template warn", BuildNetworkTest.testChangedRulesWarn);
 test("two partners that become one tool name are an error", BuildNetworkTest.testSameToolNameIsAnError);
 test("a partner listed twice is an error", BuildNetworkTest.testDoubledPartnerIsAnError);
 test("a partner named like the agent's own tool is an error, in either order", BuildNetworkTest.testPartnerNamedLikeOwnAgentIsAnError);

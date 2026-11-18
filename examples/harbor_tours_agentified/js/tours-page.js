@@ -637,6 +637,23 @@ export class ToursPage {
    * :return: a fresh copy of the state
    */
   getState() {
+    return Object.assign(ToursPage.siteState(), {
+      basket: this.basketState(),
+      search: this.searchState(),
+      confirmation: this.panelReservation(this.confirmedCode, this.confirmedLastName),
+      managePanel: this.managed ? this.panelReservation(this.managed.code, this.managed.lastName) : null,
+      pageFacts: this.pageFacts(),
+    });
+  }
+
+  /**
+   * Read the state that needs no page: today and the bookable days, the tours,
+   * the harbor dues and the limits. The action bridge shares it with other
+   * sites (bridge/bridge-actions.js).
+   *
+   * :return: a fresh copy of that state
+   */
+  static siteState() {
     const today = Calendar.today();
     const range = ToursPage.bookableRange();
     const days = [];
@@ -662,11 +679,6 @@ export class ToursPage {
         placesPerTrip: TourData.MAX_PLACES,
         tripsPerReservation: TourData.MAX_TRIPS,
       },
-      basket: this.basketState(),
-      search: this.searchState(),
-      confirmation: this.panelReservation(this.confirmedCode, this.confirmedLastName),
-      managePanel: this.managed ? this.panelReservation(this.managed.code, this.managed.lastName) : null,
-      pageFacts: this.pageFacts(),
     };
   }
 
@@ -841,9 +853,20 @@ export class ToursPage {
    * :return: each fact's text and links, by name
    */
   pageFacts() {
+    return ToursPage.factsIn(this.doc);
+  }
+
+  /**
+   * Read the page's own facts from a document of the page: the page itself, or
+   * the copy the action bridge fetches (bridge/bridge-actions.js).
+   *
+   * :param doc: the page's document
+   * :return: each fact's text and links, by name
+   */
+  static factsIn(doc) {
     const facts = {};
     for (const name of Object.keys(ToursPage.FACT_IDS)) {
-      const element = this.byId(ToursPage.FACT_IDS[name]);
+      const element = doc.getElementById(ToursPage.FACT_IDS[name]);
       const links = [];
       for (const link of element.querySelectorAll("a")) {
         // textContent leaves out where a link goes, so read its href too.

@@ -33,8 +33,11 @@ Edited files. Each one has a line near its top saying that it was changed:
 
 - `runner.js` offers each local-only action listed in the manifest's `actions.agentTools`
   as a `website_<name>` tool and runs it through the site's action registry. Actions with
-  the `irreversible` effect ask the visitor first. Only the visitor's own site gets these
-  tools, never a partner network. It also adds a `render_cruse` tool for forms and tables
+  the `irreversible` effect ask the visitor first. A partner network never gets this
+  site's actions. It gets only the reads its own bridge shares with this site that its
+  own `actions.agentTools` lists, and they run in a frame on the partner's origin
+  (`websiteToolRefusal`). A partner that shares none gets no note telling it to report a
+  missing integration. It also adds a `render_cruse` tool for forms and tables
   in the chat. It stops a partner agent at the step limit `engine.js` passes.
 - `engine.js` passes the page's confirmation dialog to `runner.js`. It also runs a partner
   network on the visitor's model or, when the visitor picked none, on this site's

@@ -2,14 +2,19 @@
 // the scripted router, and a fake bridge frame. Nothing leaves the process.
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { ActionRegistry } from "../../skills/agentify-website/runtime/actions.js";
 
 /**
  * Serves site folders under local URLs through a stub fetch, and stands in for the few
  * browser parts the runtime uses to load a partner's bridge.
  *
- * The bridge frame acts as runtime/action-bridge.js does when the manifest next to it lists
- * no action module: it loads the page and that manifest, says it is ready, and lists no
- * actions. A dialog, such as the popup offer that follows a bridge that never answers, is
+ * The bridge frame acts as runtime/action-bridge.js does: it loads the page and the
+ * manifest next to it, then the action module that manifest names, from the site's folder
+ * on disk, since Node cannot import it over the stub fetch. It says it is ready, and
+ * shares only the actions that are not local-only and whose callerOrigins list the page's
+ * origin. It runs a shared read, and refuses anything else, which needs its own window.
+ * A dialog, such as the popup offer that follows a bridge that never answers, is
  * recorded and cancelled at once, as a visitor who will not open a popup would.
  *
  * Each request is recorded with flags only, never with header values.
@@ -55,6 +60,17 @@ export class ExampleWeb {
     // The window's "message" listeners.
     this.listeners = [];
     this.saved = null;
+    // The visitor's page origin, which a bridge checks callerOrigins against.
+    this.pageOrigin = null;
+  }
+
+  /**
+   * Name the visitor's page origin, as a bridge frame sees it on the connect message.
+   *
+   * :param origin: The calling site's origin, such as "http://127.0.0.1:8080".
+   */
+  setPage(origin) {
+    this.pageOrigin = origin;
   }
 
   /**
@@ -341,11 +357,12 @@ export class ExampleWeb {
   }
 
   /**
-   * Load the bridge page and the manifest next to it, then say the bridge is ready, as
-   * runtime/action-bridge.js does.
+   * Load the bridge page, the manifest next to it and the action module it names, then say
+   * the bridge is ready, as runtime/action-bridge.js does.
    *
    * :param node: The frame stand-in.
-   * :raises Error: When the page or its manifest is missing, or the manifest names site code.
+   * :raises Error: When the page or its manifest is missing, or the manifest names site
+   *   code other than one action module.
    */
   async loadFrame(node) {
     const page = await this.load(new URL(node.src), "frame", {});
@@ -359,11 +376,15 @@ export class ExampleWeb {
     }
     const manifest = await response.json();
     const actions = manifest.actions || {};
-    if (actions.module || actions.modules || actions.catalog || actions.pages || actions.hostPage) {
-      throw new Error("The bridge's manifest names site code, which this fake frame cannot run.");
+    if (actions.modules || actions.catalog || actions.pages || actions.hostPage) {
+      throw new Error("The bridge's manifest names site code other than one action module, which this fake frame cannot run.");
     }
     if (!Array.isArray(manifest.networks) || !manifest.networks.length || typeof manifest.networks[0].name !== "string") {
       throw new Error("The bridge's manifest has no networks[0].name.");
+    }
+    node.registry = new ActionRegistry();
+    if (actions.module) {
+      await this.loadModule(node, actions.module, manifest.networks[0].name);
     }
     if (node.record.removed) {
       return;
@@ -384,6 +405,42 @@ export class ExampleWeb {
   }
 
   /**
+   * Import a bridge's action module from the site's folder and register its actions.
+   *
+   * :param node: The frame stand-in, whose registry gets the actions.
+   * :param module: The module's path, relative to the bridge page.
+   * :param network: The network name from the bridge's manifest.
+   * :raises Error: When no folder serves the module, or the module has no registerActions.
+   */
+  async loadModule(node, module, network) {
+    const url = new URL(module, node.src);
+    const folder = this.sites.get(url.origin);
+    if (folder === undefined) {
+      throw new Error(`No site is served at ${url.origin}.`);
+    }
+    this.requests.push({
+      seq: this.requests.length,
+      from: "frame",
+      method: "GET",
+      url: url.href,
+      origin: url.origin,
+      path: url.pathname,
+      authorization: false,
+      keySent: false,
+      status: 200,
+    });
+    const loaded = await import(pathToFileURL(path.join(folder, decodeURIComponent(url.pathname))).href);
+    if (typeof loaded.registerActions !== "function") {
+      throw new Error("Action modules must export registerActions.");
+    }
+    const scope = {
+      base: new URL("./", node.src).href.replace(/\/$/, ""),
+      network: network,
+    };
+    await loaded.registerActions({register: node.registry.register.bind(node.registry, scope)});
+  }
+
+  /**
    * Take the caller's "connect" message and answer on the port it sends.
    *
    * :param node: The frame stand-in.
@@ -396,32 +453,93 @@ export class ExampleWeb {
       return;
     }
     node.record.connectedFor = targetOrigin;
+    // As in runtime/action-transport.js: only what is shared with the page's own origin.
+    const allowed = [];
+    for (const entry of node.registry.entries.values()) {
+      const listed = entry.callerOrigins.includes(this.pageOrigin) || entry.callerOrigins.includes("*");
+      if (entry.availability !== "local-only" && listed) {
+        allowed.push(entry);
+      }
+    }
+    node.record.shared = [];
+    for (const entry of allowed) {
+      node.record.shared.push(entry.name);
+    }
+    node.record.executed = [];
     const port = transfer[0];
-    port.onmessage = this.answerBridge.bind(this, port);
+    port.onmessage = this.answerBridge.bind(this, node, port, allowed);
   }
 
   /**
-   * Answer a request on the bridge port. A bridge whose manifest lists no action module
-   * shares no actions.
+   * Answer a request on the bridge port: the shared catalog, or one shared read.
    *
+   * :param node: The frame stand-in, whose record lists what ran.
    * :param port: The bridge's end of the channel.
+   * :param allowed: The actions shared with this caller.
    * :param event: The message event.
    */
-  answerBridge(port, event) {
+  async answerBridge(node, port, allowed, event) {
     const data = event.data || {};
     if (data.type === "catalog") {
+      const value = [];
+      for (const entry of allowed) {
+        value.push({
+          name: entry.name,
+          description: entry.description,
+          inputSchema: entry.inputSchema,
+          outputSchema: entry.outputSchema,
+          effect: entry.effect,
+          availability: entry.availability,
+        });
+      }
       port.postMessage({
         id: data.id,
         ok: true,
-        value: [],
+        value: value,
       });
       return;
     }
-    port.postMessage({
-      id: data.id,
-      ok: false,
-      error: "Action is not exposed to this caller.",
-    });
+    let found = null;
+    for (const entry of allowed) {
+      if (data.type === "execute" && entry.name === data.name) {
+        found = entry;
+      }
+    }
+    if (found === null) {
+      port.postMessage({
+        id: data.id,
+        ok: false,
+        error: "Action is not exposed to this caller.",
+      });
+      return;
+    }
+    // A frame is not a top-level window, so only reads run here.
+    if (found.effect !== "read" || found.availability === "top-level") {
+      port.postMessage({
+        id: data.id,
+        ok: false,
+        error: "This action requires its own confirmation window.",
+      });
+      return;
+    }
+    node.record.executed.push(found.name);
+    try {
+      const value = await found.execute(data.args, {
+        requestId: data.requestId,
+        callerOrigin: this.pageOrigin,
+      });
+      port.postMessage({
+        id: data.id,
+        ok: true,
+        value: JSON.parse(JSON.stringify(value)),
+      });
+    } catch (error) {
+      port.postMessage({
+        id: data.id,
+        ok: false,
+        error: String(error.message || error),
+      });
+    }
   }
 
   /**

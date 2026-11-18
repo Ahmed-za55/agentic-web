@@ -1,0 +1,272 @@
+// Checks which site actions the skill's runtime gives an agent as website_* tools. The
+// visitor's own site gets its local-only actions. A partner network gets only the reads
+// its own bridge shares with this page, never this page's actions, and nothing else.
+// Run from the repository root: node --test "tests/**/*.test.mjs"
+// The registry and the network are built in memory. No model is called.
+import assert from "node:assert/strict";
+import test from "node:test";
+import { ActionRegistry } from "../../../../skills/agentify-website/runtime/actions.js";
+import { AgentNetwork } from "../../../../skills/agentify-website/runtime/kernel.js";
+import { buildToolTable, dispatchToolCall, websiteToolRefusal } from "../../../../skills/agentify-website/runtime/runner.js";
+
+/**
+ * Builds a page's action registry with the page's own actions and a partner's shared
+ * ones, then asks the runtime which become tools for each network.
+ */
+class WebsiteToolTest {
+  /**
+   * The visitor's page and the partner it calls.
+   */
+  static PAGE = "http://127.0.0.1:8080";
+  static PARTNER = "http://localhost:8081";
+
+  /**
+   * A network with one agent and no other tools, for the page or the partner.
+   *
+   * :param name: The network name.
+   * :return: The AgentNetwork.
+   */
+  static network(name) {
+    return new AgentNetwork({
+      tools: [
+        {
+          name: "front",
+          instructions: "Answer the visitor.",
+          tools: [],
+        },
+      ],
+    }, name);
+  }
+
+  /**
+   * Describe an action, as a site module or a bridge catalog does.
+   *
+   * :param name: The action name.
+   * :param effect: "read", "write" or "irreversible".
+   * :param availability: "local-only", "bridge" or "top-level".
+   * :return: The action definition.
+   */
+  static definition(name, effect, availability) {
+    return {
+      name: name,
+      description: `The ${name} action.`,
+      effect: effect,
+      availability: availability,
+      inputSchema: {
+        type: "object",
+        properties: {},
+        additionalProperties: false,
+      },
+      execute: WebsiteToolTest.answer.bind(null, name),
+    };
+  }
+
+  /**
+   * Answer an action call with its name.
+   *
+   * :param name: The action name.
+   * :return: A result that names the action.
+   */
+  static answer(name) {
+    return {
+      ok: true,
+      ran: name,
+    };
+  }
+
+  /**
+   * Register the page's own actions and the partner's shared ones, as the engine does:
+   * the page's from its module, the partner's from its bridge catalog.
+   *
+   * :return: The registry.
+   */
+  static registry() {
+    const registry = new ActionRegistry();
+    const page = {
+      base: WebsiteToolTest.PAGE,
+      network: "guesthouse",
+    };
+    const partner = {
+      base: WebsiteToolTest.PARTNER,
+      network: "tours",
+    };
+    registry.register(page, WebsiteToolTest.definition("get_state", "read", "local-only"));
+    registry.register(page, WebsiteToolTest.definition("place_booking", "irreversible", "local-only"));
+    registry.register(partner, WebsiteToolTest.definition("find_departures", "read", "bridge"));
+    registry.register(partner, WebsiteToolTest.definition("get_hidden", "read", "bridge"));
+    registry.register(partner, WebsiteToolTest.definition("book_departure", "irreversible", "bridge"));
+    registry.register(partner, WebsiteToolTest.definition("get_in_window", "read", "top-level"));
+    return registry;
+  }
+
+  /**
+   * The runner context for the page's own network or for the partner's.
+   *
+   * :param registry: The registry from registry().
+   * :param isTop: True for the visitor's own site, false for the partner.
+   * :return: The context.
+   */
+  static context(registry, isTop) {
+    const name = isTop ? "guesthouse" : "tours";
+    // Each site lists in agentTools the actions its own agents may call. The partner leaves
+    // out get_hidden, so its agents never get it, though its bridge shares it.
+    const agentTools = isTop ? ["get_state", "place_booking"] : ["find_departures", "book_departure", "get_in_window"];
+    return {
+      network: WebsiteToolTest.network(name),
+      manifest: {
+        actions: {
+          agentTools: agentTools,
+        },
+      },
+      actions: registry,
+      baseOrigin: isTop ? WebsiteToolTest.PAGE : WebsiteToolTest.PARTNER,
+      displayOrigin: isTop ? "127.0.0.1:8080" : "localhost:8081",
+      isTop: isTop,
+      confirmWebsiteActions: WebsiteToolTest.approve,
+      trace: {
+        note: WebsiteToolTest.ignore,
+      },
+    };
+  }
+
+  /**
+   * Approve every confirmation, as a visitor who clicks the confirm button.
+   *
+   * :return: True.
+   */
+  static async approve() {
+    return true;
+  }
+
+  /**
+   * Take a trace note and do nothing.
+   */
+  static ignore() {}
+
+  /**
+   * List the website tools one network's agent gets.
+   *
+   * :param ctx: The context.
+   * :return: The tool names.
+   */
+  static async websiteTools(ctx) {
+    const table = await buildToolTable(ctx, ctx.network.getAgentSpec("front"), [], null);
+    const names = [];
+    for (const name of table.toolByName.keys()) {
+      if (name.startsWith("website_")) {
+        names.push(name);
+      }
+    }
+    return names;
+  }
+
+  /**
+   * The visitor's own site gets its local-only actions, and never the partner's.
+   */
+  static async testOwnSiteGetsItsLocalActions() {
+    const ctx = WebsiteToolTest.context(WebsiteToolTest.registry(), true);
+    assert.deepEqual(await WebsiteToolTest.websiteTools(ctx), ["website_get_state", "website_place_booking"]);
+  }
+
+  /**
+   * A partner gets only the reads its bridge shares that its own agentTools lists: not a
+   * write, not a read that needs its own window, not one it leaves out of agentTools, and
+   * never the page's own actions.
+   */
+  static async testPartnerGetsOnlyItsSharedReads() {
+    const ctx = WebsiteToolTest.context(WebsiteToolTest.registry(), false);
+    assert.deepEqual(await WebsiteToolTest.websiteTools(ctx), ["website_find_departures"]);
+  }
+
+  /**
+   * Each refusal says why, for the visitor's site and for a partner.
+   */
+  static testRefusalReasons() {
+    const registry = WebsiteToolTest.registry();
+    const top = WebsiteToolTest.context(registry, true);
+    const partner = WebsiteToolTest.context(registry, false);
+    const cases = [
+      {
+        ctx: partner,
+        action: WebsiteToolTest.definition("find_departures", "read", "bridge"),
+        reason: "",
+      },
+      {
+        ctx: partner,
+        action: WebsiteToolTest.definition("get_hidden", "read", "bridge"),
+        reason: "not listed in the manifest's actions.agentTools",
+      },
+      {
+        ctx: partner,
+        action: WebsiteToolTest.definition("book_departure", "irreversible", "bridge"),
+        reason: "a partner network gets only read actions",
+      },
+      {
+        ctx: partner,
+        action: WebsiteToolTest.definition("get_in_window", "read", "top-level"),
+        reason: "a partner network gets only actions its bridge shares",
+      },
+      {
+        ctx: partner,
+        action: WebsiteToolTest.definition("find_departures", "read", "local-only"),
+        reason: "a partner network gets only actions its bridge shares",
+      },
+      {
+        ctx: top,
+        action: WebsiteToolTest.definition("get_state", "read", "bridge"),
+        reason: "not a local-only action",
+      },
+      {
+        ctx: Object.assign({}, top, {confirmWebsiteActions: undefined}),
+        action: WebsiteToolTest.definition("place_booking", "irreversible", "local-only"),
+        reason: "irreversible, and the page has no confirmation dialog",
+      },
+      {
+        ctx: top,
+        action: null,
+        reason: "no such action is registered for this network",
+      },
+    ];
+    for (const item of cases) {
+      assert.equal(websiteToolRefusal(item.ctx, item.action), item.reason, JSON.stringify(item.action));
+    }
+  }
+
+  /**
+   * A partner's call to a shared read runs it. A call that names a refused action, or the
+   * page's own action, is refused when the model makes it, even if the model guessed it.
+   */
+  static async testPartnerCallsAreCheckedAgain() {
+    const registry = WebsiteToolTest.registry();
+    const ctx = WebsiteToolTest.context(registry, false);
+    const refs = new Map();
+    for (const entry of registry.entries.values()) {
+      refs.set(`${entry.base}#${entry.name}`, entry.ref);
+    }
+    const read = await dispatchToolCall(ctx, {
+      kind: "website",
+      ref: refs.get(`${WebsiteToolTest.PARTNER}#find_departures`),
+    }, {}, null, []);
+    assert.equal(read.status, "succeeded");
+    assert.deepEqual(read.result, {
+      ok: true,
+      ran: "find_departures",
+    });
+    const refused = [
+      `${WebsiteToolTest.PARTNER}#book_departure`,
+      `${WebsiteToolTest.PARTNER}#get_hidden`,
+      `${WebsiteToolTest.PAGE}#get_state`,
+    ];
+    for (const key of refused) {
+      await assert.rejects(dispatchToolCall(ctx, {
+        kind: "website",
+        ref: refs.get(key),
+      }, {}, null, []), /Website action is not callable by this agent\./, key);
+    }
+  }
+}
+
+test("the visitor's own site gets its local-only actions as tools", WebsiteToolTest.testOwnSiteGetsItsLocalActions);
+test("a partner network gets only the reads its bridge shares and lists in agentTools", WebsiteToolTest.testPartnerGetsOnlyItsSharedReads);
+test("each refused action gets its reason", WebsiteToolTest.testRefusalReasons);
+test("a partner's calls are checked again when the model makes them", WebsiteToolTest.testPartnerCallsAreCheckedAgain);

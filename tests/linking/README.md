@@ -35,7 +35,10 @@ does not name the partner's URL in `tools`.
 
 `linking.test.mjs` runs the skill's runtime in Node. `ExampleWeb` (`example_web.mjs`)
 serves the site folders from disk under the URLs above through a stub `fetch`, answers
-model requests with the scripted router, and stands in for the partner's bridge frame. No
+model requests with the scripted router, and stands in for the partner's bridge frame. The
+fake frame imports the module the bridge's manifest names from the site's folder, and
+shares what `runtime/action-transport.js` would: actions that are not local-only, for the
+origins in their `callerOrigins`, or for every origin with `"*"`. It runs reads only. No
 port is used and nothing leaves the process. Run them with the other tests, from the
 repository root:
 
@@ -45,14 +48,15 @@ node --test "tests/**/*.test.mjs"
 
 | Case | Checks |
 | --- | --- |
-| L1, L4 | With no visitor model: one card with the partner's label (each of its words is in the partner's brand), host and the whole request, and nothing sent to the partner before the answer. Then its manifest, network file and `links.json`, and a frame for `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner runs on the calling site's model, with the key, on the router. No site gets the key or an `Authorization` header. The partner's first request has only a system and a user message, the `remote_call` trace has empty `sly_data`, and the partner's prompt holds the peer rule and the runtime's "No browser actions" note. The answer reaches the calling site. L4 is L1 between two example sites. When both sites name the same model, the test serves the partner's network naming another model, so it still shows that the calling site chose the partner's model. |
+| L1, L4 | With no visitor model: one card with the partner's label (each of its words is in the partner's brand), host and the whole request, and nothing sent to the partner before the answer. Then its manifest, network file and `links.json`, and a frame for `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner runs on the calling site's model, with the key, on the router. No site gets the key or an `Authorization` header. The partner's first request has only a system and a user message, the `remote_call` trace has empty `sly_data`, the bridge shares exactly the actions its `bridge/bridge-actions.js` lists for the calling site's origin, the partner is offered exactly the reads among them that its own `agentTools` lists, and its prompt has no "No browser actions" note. The answer reaches the calling site. L4 is L1 between two example sites. When both sites name the same model, the test serves the partner's network naming another model, so it still shows that the calling site chose the partner's model. |
 | L2 | A model the visitor picked is used by both sites. |
 | L3 | A decline sends nothing at all to the partner. |
 | L5 | The partner is not offered a call back to the calling site, so there is one card. When the partner does not call the calling site, the test adds that call to the served copy of its network. |
 | L6 | A second call to the same partner in one message is skipped, and the partner runs once. |
 | L7 | With the partner's origin missing from the calling site's `allowed_peers`, the call is refused and nothing goes to the partner. |
-| L8 | Each example keeps `runtime/` byte for byte as the skill's, keeps the template's `peer_rules` and `partner_rules` (with its read action filled in), and builds with `--check` with no warning. The test sites get the same checks, without the runtime one. |
+| L8 | Each example keeps `runtime/` byte for byte as the skill's, has no `peer_rules`, keeps the template's `partner_rules` (with its read action filled in), and builds with `--check` with no warning. The test sites get the same checks, without the runtime one. |
 | L9 | A partner network that fails validation gives an "Error from tool" result and makes no model call. |
+| L11 | The partner calls a read its site shares with the calling site (the tour site's `find_departures`, the guesthouse's `search_rooms`). The runtime opens a second frame on the partner's origin, the fake frame runs the site's own module there, and the result reaches the partner and then the calling site, with no dialog. The pizza site's one read also reads its page's HTML, which needs a browser, so its directions skip, and so does the test caller, which no site shares with. |
 | L10 | A second hop: the test caller, served so that it names the tour site, calls the tour site, whose network calls the guesthouse. Each hop shows its own card before any contact, every model call runs on the test caller's model with the key, and no site gets the key. With the tour site's `allowed_peers` served empty, the second hop is refused by the tour site's own policy and the guesthouse is never contacted. |
 
 The calling site's own `actions` are left out of its served manifest, because Node cannot
@@ -93,12 +97,13 @@ node tests/linking/chrome/run_linking_check.mjs [--chrome <path>]
 
 | Case | Checks |
 | --- | --- |
-| C1 | Visitor model set, Allow. The partner ran, and answered under 5 s after consent. One card, with the label, the partner's host and the whole request. The frame loaded the partner's `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner served only its manifest, network file, `links.json`, `bridge/` and `runtime/` files. No "Continue at" dialog. Only router requests carry the key, besides the runtime's cookie on the calling site's own host, and no partner request has `Authorization` or the `nsweb_byok_profiles_v1` cookie. Every chat request went to the router, on the visitor's model. The partner was offered no `website_*` tool. A note gives the calling page's action note after the call: the runtime shows the partner bridge's "No actions exposed" there, which is on the upstream list. |
+| C1 | Visitor model set, Allow. The partner ran, and answered under 5 s after consent. One card, with the label, the partner's host and the whole request. The frame loaded the partner's `bridge/action-bridge.html` with sandbox `allow-scripts allow-same-origin`. The partner served only its manifest, network file, `links.json`, `bridge/` and `runtime/` files, and, when its bridge has `bridge-actions.js`, the site modules that file imports, never the page or the files that start it. No "Continue at" dialog. Only router requests carry the key, besides the runtime's cookie on the calling site's own host, and no partner request has `Authorization` or the `nsweb_byok_profiles_v1` cookie. Every chat request went to the router, on the visitor's model. The partner was offered exactly the reads its bridge module shares with the calling site's origin that its own `agentTools` lists, and its answer shows them and no "No browser actions" note. Notes give what the bridge shares, and the calling page's action note after the call: for a partner that shares nothing with this caller, the runtime shows "No actions exposed" there, which is on the upstream list. |
 | C2 | C1 with no visitor model: every chat request uses the calling site's front-agent model. When both sites name the same model, the check serves a copy of the partner whose network names another model, then serves the partner itself again, and a note says so. |
 | C3 | Decline: no request at all reaches the partner's host. |
 | C4 | C1 when an example site calls, not the fixture caller. |
 | C5 | Each site's own page, with no key: the keyless read check returns `succeeded`, and the status line shows "N website actions connected". |
-| C6 | Each bridge page opened directly reads "Open this page through an agent action.", loads none of the site's own files, and logs no error. Chrome's own `/favicon.ico` request is not counted. |
+| C6 | Each bridge page opened directly reads "Open this page through an agent action.", loads none of the page or the files that start it (`index.html`, `site-actions.js`, `site.js`, `js/app.js`), and logs no error. A note lists the site modules its `bridge-actions.js` imports. Chrome's own `/favicon.ico` request is not counted. |
+| C9 | For each direction whose partner shares its state read with the caller: the partner's agent calls it. The partner served its bridge page twice, for the catalog and for the read, and `bridge/bridge-actions.js` and `index.html`, which the bridge fetches and parses with the browser's `DOMParser`. The read succeeded, its result has the page's facts with their text, and no fact link points into `bridge/`. No "Continue at" dialog, and no partner request has `Authorization` or the key cookie. The result reached the calling site. |
 | C7 | `--same-host`, for information: the calling page opened under the partner's host name. It reports whether the key cookie reached the partner's host. It skips a direction whose two servers listen on different addresses, such as any with the pizza site. |
 | C8 | `--no-bridge`, for information, for the first direction that runs: the partner served without its bridge. It reports the 10-second wait and the "Continue at" dialog. For another direction, pass it with `--direction`. |
 
@@ -109,8 +114,9 @@ the run.
 
 The router (`chrome/mock_router.mjs`) works for any skill-built network. A request whose
 last user message is the scripted request comes from the partner: it answers
-`PARTNER_ANSWER:` with whether its prompt holds the peer rule and the runtime's "No browser
-actions" note. Only for L10, it first calls its own partner tool once with a second
+`PARTNER_ANSWER:` with the `website_*` tools it was offered and whether its prompt holds the
+runtime's "No browser actions" note. For L11, `read()` makes it call one of those tools
+first and answer with the result. Only for L10, it first calls its own partner tool once with a second
 request, and that partner answers `NESTED_ANSWER:`. Any other request comes from
 the calling site: it calls the direction's partner tool, one of those whose description
 starts with "Hand off to the", then answers `CALLER_FINAL:` with the partner's text. Each

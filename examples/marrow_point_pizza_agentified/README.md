@@ -83,26 +83,28 @@ Then ask this site's assistant, for example, "Is there somewhere to stay
 nearby?" Before anything is sent, a card shows the partner's name, its host and
 the first 140 characters of the request, and asks you to agree. Treat the
 request as sent to the partner: its assistant reads it. This site's rules tell
-the assistant to ask only what the partner can answer, such as what it offers
-and how to book, and never to put in names, emails, phone numbers or booking
-codes. The runtime does not filter the request, so check it on the card.
+the assistant to give exact dates and numbers of people, and never to put in
+names, emails, phone numbers or booking codes. The runtime does not filter the
+request, so check it on the card.
 **Always allow** skips the card, and that check, for every partner on that host
 until you reload the page. A partner's assistant can ask its own partners too,
 each after its own card.
 
 After you agree, the partner's network runs in this browser, on your key and
-router, and costs more than the card's token estimate. It gets none of the
-partner's own functions, so it cannot give live availability or prices: it
-should say what the partner offers and point to its page. The assistant then
-gives the partner's link from this page's **Find us** note. If you decline,
+router, and costs more than the card's token estimate. It gets only the reads
+the partner's site shares with this one, such as the guesthouse's free rooms
+and prices or the tour site's departures. Each runs the partner's own code in a
+hidden frame on the partner's address. Bookings stay on the partner's own page.
+The assistant then gives the partner's link from this page's **Find us** note. If you decline,
 nothing is sent to the partner, and the assistant should say so and give that
 link. It should do the same when a partner is not running.
 
 Other agent sites can call this network at
 `http://[::1]:8083/little_oven_pizza`. It then runs in their visitor's browser
-with none of this site's functions, and should point to this page for the menu
-details, the cart and orders. Their visitor also gets a card for each partner
-this network asks.
+with one read that this site shares with the guesthouse and the tour site in
+`bridge/bridge-actions.js`: the menu, the time and the page's facts, such as
+opening hours and delivery. The cart and orders stay on this page. Their visitor
+also gets a card for each partner this network asks.
 
 ## Tests
 
@@ -131,8 +133,8 @@ definitions each model call sends. After changing `little_oven_pizza.hocon` or
 - `little_oven_pizza.network.json`, `agent-mcp.json` and `.well-known/`:
   generated from the `.hocon` file and the manifest. Do not edit them by hand.
 - `bridge/`: the page other agent sites load in a hidden frame before they run
-  this network, with its own manifest, which shares none of this site's
-  functions. The build writes it. Do not edit it by hand.
+  this network. `bridge-actions.js` holds the read it shares with them. The
+  build writes the page and its manifest. Do not edit those by hand.
 - `agent-manifest.json` and `links.json`: the public files that describe the
   network.
 - `runtime/`: the browser runtime, copied unchanged from the skill.
