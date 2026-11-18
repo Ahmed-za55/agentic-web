@@ -59,7 +59,7 @@ class SettingsPanelTest {
     for (const provider of providerButtons()) {
       names.push(provider.name);
     }
-    assert.deepEqual(names, ["Otari", "Google AI Studio", "Groq", "OpenAI", "Anthropic"]);
+    assert.deepEqual(names, ["Otari", "Google AI Studio", "Groq", "OpenRouter", "OpenAI", "Anthropic"]);
   }
 
   /**
@@ -79,6 +79,17 @@ class SettingsPanelTest {
     assert.equal(provider?.name, "Google AI Studio");
     assert.equal(provider.router, "https://generativelanguage.googleapis.com/v1beta/openai");
     assert.equal(provider.model, "models/gemini-3.8-flash");
+  }
+
+  /**
+   * An OpenRouter key, pasted or from Connect with OpenRouter, fills in OpenRouter and its
+   * free default model.
+   */
+  static testOpenRouterKey() {
+    const provider = providerForApiKey(SettingsPanelTest.fakeKey("sk-or-v1-"));
+    assert.equal(provider?.name, "OpenRouter");
+    assert.equal(provider.router, "https://openrouter.ai/api/v1");
+    assert.equal(provider.model, "google/gemma-4-31b-it:free");
   }
 
   /**
@@ -114,4 +125,5 @@ test("an Otari EU key fills in the EU gateway", SettingsPanelTest.testEuOtariKey
 test("the panel shows one Otari button", SettingsPanelTest.testOneOtariButton);
 test("a self-hosted Otari key matches no provider", SettingsPanelTest.testSelfHostedOtariKey);
 test("a Google AI Studio key fills in Gemini under the name Google's model list uses", SettingsPanelTest.testGoogleKey);
+test("an OpenRouter key fills in OpenRouter", SettingsPanelTest.testOpenRouterKey);
 test("the other providers still match their keys", SettingsPanelTest.testOtherProviders);
