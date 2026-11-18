@@ -32,17 +32,24 @@ In the `⚙ AI model settings` panel, set:
 
 - API key: an API key from your [otari.ai](https://otari.ai) account. It starts with `otk_`.
 - Under `Advanced settings (optional)`, Model: `alibaba/qwen3.8-flash`
-- Under `Advanced settings (optional)`, Provider URL: `https://api.otari.ai/api/v1`
+- Under `Advanced settings (optional)`, Provider URL: `https://api.otari.ai/api/v1`, or
+  `https://eu.api.otari.ai/api/v1` if your key starts with `otk_v1_eu_`
 
 Select `Save and start`, then chat.
 
 On sites built with the agentify-website skill, including the examples in this repo,
-pasting the key is enough: the panel fills in the Model and Provider URL above.
+pasting the key is enough: the panel fills in the Model and Provider URL above, including
+the EU Provider URL for an EU key.
 
 Things to know:
 
 - **Base URL.** It must end in `/api/v1`. Plain `/v1` returns 404, and the browser
   reports that as a CORS error.
+- **EU accounts.** An otari.ai key belongs to one region. A key that starts with
+  `otk_v1_eu_` works only at `https://eu.api.otari.ai/api/v1`, and other otari.ai keys
+  work only at `https://api.otari.ai/api/v1`. The wrong gateway answers `421`. Older
+  sites fill in `https://api.otari.ai/api/v1` for every Otari key. On those, set Provider
+  URL to the EU address yourself.
 - **Pick a chat model that makes tool calls.** `GET /api/v1/models` lists every model.
   Look for `"type": "chat"` and `tools` in `supported_parameters`.
 - **Some models fail on every request.** With `alibaba/qwen3-14b` and
@@ -181,6 +188,7 @@ Things to know:
 | 402 "No pricing is configured" | Self-hosted: add a `pricing` entry for that model. |
 | 404 "Otari serves its API under /api/v1" | The base URL must end in `/api/v1`, not `/v1`. |
 | 401 "Invalid API key" | The key is wrong. Self-hosted: check that `OTARI_LOCAL_API_KEY` was set in the shell that ran `docker run`. |
+| 421 "This API key belongs to eu.api.otari.ai" | Hosted Otari: the key is for another region. Set Provider URL to the host the message names plus `/api/v1`, such as `https://eu.api.otari.ai/api/v1`, then select `Save and start`. |
 
 ## Get help and share feedback
 

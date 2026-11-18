@@ -142,11 +142,14 @@
         <p id="assistant-status" role="status">Connecting the assistant… If this message stays, the assistant could not load. You can still use the page directly.</p>
         <div id="agent-app">
           <div data-ns-slot="header"></div>
-          <div class="assistant-panels">
-            <div data-ns-slot="chat"></div>
+          <div class="assistant-tools">
             <div data-ns-slot="agents"></div>
+            <details class="assistant-settings">
+              <summary>⚙ AI model settings</summary>
+              <div data-ns-slot="settings"></div>
+            </details>
           </div>
-          <div data-ns-slot="settings"></div>
+          <div data-ns-slot="chat"></div>
         </div>
       </section>
       <p id="status" class="visually-hidden" role="status" aria-live="polite"></p>
