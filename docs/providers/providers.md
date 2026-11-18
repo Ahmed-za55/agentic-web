@@ -15,7 +15,7 @@ It requires the provider to allow browser calls (CORS).
 | [Anthropic](#anthropic) | `https://api.anthropic.com/v1` | `claude-haiku-4-5` | Newer sites only, if your organization allows it |
 | [LiteLLM, self-hosted](#litellm-self-hosted) | `http://127.0.0.1:4000/v1` | your model alias | Works |
 | [Ollama, local](#ollama-local) | `http://127.0.0.1:11434/v1` | `gemma4:e4b` | Local testing only |
-| [Otari](otari.md) | `https://api.otari.ai/api/v1` | `alibaba/qwen3.8-flash` | Works, but [some models fail](otari.md#hosted-otari-otariai) |
+| [Otari](otari.md) | `https://api.otari.ai/api/v1`, or `https://eu.api.otari.ai/api/v1` for an EU key (`otk_v1_eu_`) | `alibaba/qwen3.8-flash` | Works, but [some models fail](otari.md#hosted-otari-otariai) |
 
 If Anthropic refuses browser calls from your site, use OpenRouter or LiteLLM for Claude models.
 
@@ -54,6 +54,29 @@ Things to know for every provider:
 - OpenRouter allows browser calls, so static bundles work. It's the easiest way to use
   Claude models from a browser-only site.
 - Tool use depends on the model, so pick one that reliably calls tools.
+- API keys start with `sk-or-`.
+
+**Connect with OpenRouter.** Sites built with the agentify-website skill, including the
+examples in this repo, have a `Connect with OpenRouter` button in the `⚙ AI model settings`
+panel. The visitor signs in to OpenRouter and approves a key for the site, with nothing to
+copy. The panel saves the key and fills in the free model `google/gemma-4-31b-it:free`.
+The site owner registers nothing. Things to know:
+
+- **One key per site.** Each site gets its own key, named after the site and its host. The
+  panel links to the key's page on OpenRouter, where the visitor sees what it spends, sets
+  a spending limit or revokes it. Connecting again on the same site replaces the saved key.
+- **Kept in the browser.** The key is saved like a pasted key, so any script on the site
+  can read it. OpenRouter advises keeping such keys on a server, but a static site has none.
+- **Free model limits.** Free `:free` models allow 20 requests a minute, and 50 a day until
+  the account has bought 10 credits. One chat turn can take several requests. For more,
+  enter a paid model under `Advanced settings (optional)`, such as `qwen/qwen3.8-flash`.
+- **Free model data.** Free providers may keep or train on prompts. The default's provider,
+  Google AI Studio, does not train on them but keeps them for 55 days. OpenRouter shows
+  each provider's policy on the model's page, and a visitor's OpenRouter privacy settings
+  decide whether providers that may train on prompts can be used.
+- **Where it works.** The page must be served over https, or opened on your own computer.
+  OpenRouter's docs promise `localhost` callbacks on any port. `127.0.0.1` has not been
+  tested yet. The button is hidden when the page is inside a frame.
 
 ## Anthropic
 

@@ -4,6 +4,7 @@
 // reviewDetails() below uses App, the class the page script exports. This is the URL
 // index.html loads it from, and the module that keeps the page object.
 import { App } from "./js/app.js";
+import { ChatFollow } from "./chat-follow.js";
 
 /**
  * Boots the browser runtime in the page's assistant section.
@@ -57,6 +58,8 @@ export class AssistantMount {
       booted.engine.onActionConfirm = AssistantMount.review;
       AssistantMount.defaultConsent = booted.engine.onConsent;
       booted.engine.onConsent = AssistantMount.consent;
+      // The chat grows with the page, so the page scrolls to show new messages.
+      ChatFollow.start(document.querySelector("#agent-app"));
       // Without a key the chat cannot answer yet. This is the same test as the
       // runtime's "API key required" badge in runtime/ui.js.
       const needsKey = !booted.engine.mockLLM

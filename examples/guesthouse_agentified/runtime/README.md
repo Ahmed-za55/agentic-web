@@ -46,16 +46,32 @@ Edited files. Each one has a line near its top saying that it was changed:
   `x-ui.enumLabels`. It groups radio buttons under a legend and links each field to its
   description for screen readers. The ⚙ AI model settings panel lists hosted Otari first,
   the template's default router, and fills in its settings for a key that starts with
-  `otk_`. The Google AI Studio model is `models/gemini-3.8-flash`, the name Google's model
-  list uses, so the panel's model check accepts it.
+  `otk_`. A key that starts with `otk_v1_eu_` gets the EU gateway,
+  `https://eu.api.otari.ai/api/v1`, because the default gateway refuses it with HTTP 421.
+  The Google AI Studio model is `models/gemini-3.8-flash`, the name Google's model
+  list uses, so the panel's model check accepts it. The panel also has a Connect with
+  OpenRouter button and recognizes OpenRouter keys, which start with `sk-or-`. Where the
+  button cannot work, OpenRouter is listed with the other providers instead. For an
+  OpenRouter key it links to the key's page on OpenRouter. The panel's first line says
+  which provider, model and key the chat uses.
 - `action-transport.js` opens the confirmation dialog with focus on its heading, so a
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
-  site offers `website_*` tools.
+  site offers `website_*` tools. It also finishes an OpenRouter sign-in before it reads
+  the saved setup.
 - `llm.js` keeps Gemini's thought signature (`extra_content`) on each streamed tool call,
   so it goes back to the model on the next step. Gemini 3 refuses that step without it.
   Gemini also streams each tool call whole and without an `index`, so a new call id
   starts a new call instead of joining the one before it.
+
+Added files:
+
+- `openrouter-connect.js` runs the Connect with OpenRouter sign-in (OAuth with PKCE). It
+  sends the visitor to OpenRouter, checks the reply, swaps the one-time code for a key on
+  the visitor's own account, and saves the key like a pasted one. Sites need no app
+  registration.
+- `in-use-line.js` builds the "In use" line of ⚙ AI model settings: the provider, the
+  model and the last four characters of the key the chat uses.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.

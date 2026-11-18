@@ -49,8 +49,10 @@ sent to a server, no payment is collected and nothing is reserved.
 - `index.html`: trips and prices, the trip finder, the basket and reservation
   form, Manage my reservation and where to stay.
 - `policies.html`: Good to know, in eight sections.
-- `styles.css`: shared responsive styles, with no external fonts or assets.
-- `favicon.svg`: the site icon.
+- `styles.css`: shared responsive styles. They load nothing from other servers.
+- `fonts/`: the Fredoka and Nunito fonts, with their SIL Open Font License files.
+- `img/`: the pictures on the trip cards.
+- `favicon.svg`: the site icon, also shown before the site's name.
 - `js/app.js`: starts the page.
 - `js/tours-page.js`: renders the page and connects its forms and buttons to
   the operations.

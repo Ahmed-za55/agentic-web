@@ -172,8 +172,11 @@ guesthouse's origin in `connect-src` and `frame-src`.
   form, Manage my reservation, where to stay, and the assistant.
 - `policies.html`: Good to know, in eight sections.
 - `styles.css`: shared responsive styles, with the assistant's styles at the
-  end, and no external fonts or assets.
-- `favicon.svg`: the site icon.
+  end. They load nothing from other servers.
+- `fonts/`: the Fredoka and Nunito fonts, with their SIL Open Font License files.
+- `img/`: the pictures on the trip cards.
+- `favicon.svg`: the site icon, also shown before the site's name and the
+  assistant's replies.
 - `js/app.js`: starts the page and keeps it in `App.page`.
 - `js/tours-page.js`: renders the page and connects its forms and buttons to
   the operations. The assistant calls the same operations.
@@ -187,6 +190,9 @@ guesthouse's origin in `connect-src` and `frame-src`.
   reservations.
 - `js/good-to-know.js`: reads the Good to know page for the assistant.
 - `site.js`: boots the assistant and shows its confirmation dialogs.
+- `chat-follow.js`: keeps the newest chat message in view. The chat grows with the
+  page and its message box sticks to the bottom of the screen, so the page scrolls
+  to each new message, but only when the visitor is already at the end of the chat.
 - `site-actions.js`: the site's operations as the assistant's `website_*`
   tools.
 - `marrow_point_harbor_tours.hocon`: the agent network's source.
