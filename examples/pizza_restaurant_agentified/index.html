@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="A simple pizza restaurant demo with a menu, cart and checkout.">
     <title>Little Oven Pizza</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="script.js"></script>
     <script type="module" src="site.js"></script>
@@ -70,10 +71,14 @@
         <p id="assistant-status" role="status">Connecting the assistant…</p>
         <div id="agent-app">
           <div data-ns-slot="header"></div>
-          <div class="assistant-panels">
-            <div data-ns-slot="chat"></div>
+          <div class="assistant-tools">
             <div data-ns-slot="agents"></div>
+            <details class="assistant-settings">
+              <summary>⚙ AI model settings</summary>
+              <div data-ns-slot="settings"></div>
+            </details>
           </div>
+          <div data-ns-slot="chat"></div>
         </div>
       </section>
     </main>

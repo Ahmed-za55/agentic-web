@@ -121,9 +121,12 @@ skill's `references/bundle_and_hosting.md` for `get_guesthouse_state`:
 - `index.html`: rooms, availability search, booking form, manage booking and
   the assistant section.
 - `policies.html`: house policies and fees.
-- `styles.css`: shared responsive styles, with no external fonts or assets, and
-  the assistant's styles at the end.
-- `favicon.svg`: the site icon.
+- `styles.css`: shared responsive styles, with the assistant's styles at the
+  end. They load nothing from other servers.
+- `fonts/`: the Fredoka and Nunito fonts, with their SIL Open Font License files.
+- `img/`: the pictures on the room cards.
+- `favicon.svg`: the site icon, also shown before the site's name and the
+  assistant's replies.
 - `js/app.js`: starts the page and keeps it as `App.page`.
 - `js/booking-page.js`: renders the page, connects its forms and buttons to the
   operations, and gives the assistant the same operations.
@@ -139,6 +142,9 @@ skill's `references/bundle_and_hosting.md` for `get_guesthouse_state`:
 - `js/guesthouse-data.js`: rooms, extras, fees, cancellation tiers and existing
   bookings.
 - `site.js`: boots the assistant and shows its confirmation dialog.
+- `chat-follow.js`: keeps the newest chat message in view. The chat grows with the
+  page and its message box sticks to the bottom of the screen, so the page scrolls
+  to each new message, but only when the visitor is already at the end of the chat.
 - `site-actions.js`: registers the operations the assistant can call.
 - `tidewhistle_guesthouse.hocon`: the agent network's source.
 - `tidewhistle_guesthouse.network.json`, `agent-mcp.json` and `.well-known/`:

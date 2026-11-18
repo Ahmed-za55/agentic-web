@@ -44,8 +44,10 @@ server, no payment is collected and nothing is booked.
 
 - `index.html`: rooms, availability search, booking form and manage booking.
 - `policies.html`: house policies and fees.
-- `styles.css`: shared responsive styles, with no external fonts or assets.
-- `favicon.svg`: the site icon.
+- `styles.css`: shared responsive styles. They load nothing from other servers.
+- `fonts/`: the Fredoka and Nunito fonts, with their SIL Open Font License files.
+- `img/`: the pictures on the room cards.
+- `favicon.svg`: the site icon, also shown before the site's name.
 - `js/app.js`: starts the page.
 - `js/booking-page.js`: renders the page and connects its forms and buttons to
   the operations.
