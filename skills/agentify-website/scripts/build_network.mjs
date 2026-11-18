@@ -205,7 +205,8 @@ class NetworkBuilder {
       this.checkPlaceholders(manifest, "manifest");
     }
     this.added = this.runtimeContextSizes(runtime, network, frontMan);
-    this.websiteTools = this.offeredTools(manifest, network.config);
+    this.websiteTools = this.websiteToolNames(manifest);
+    this.cruse = Boolean(network.config.cruse);
     this.outputs.set(this.options.out, `${JSON.stringify(config, null, 2)}\n`);
     if (manifest !== null) {
       this.addDiscoveryFiles(manifest);
@@ -242,13 +243,12 @@ class NetworkBuilder {
   }
 
   /**
-   * List the tools the runtime adds to every agent, on top of its "tools" list.
+   * List the website_* tools named in the manifest's actions.agentTools.
    *
    * :param manifest: The parsed manifest, or null.
-   * :param resolved: The resolved network.
-   * :return: The added tool names.
+   * :return: The tool names.
    */
-  offeredTools(manifest, resolved) {
+  websiteToolNames(manifest) {
     const names = [];
     const actions = manifest === null ? null : manifest.actions || null;
     if (actions !== null && Array.isArray(actions.agentTools)) {
@@ -256,6 +256,19 @@ class NetworkBuilder {
         names.push(`website_${name}`);
       }
     }
+    return names;
+  }
+
+  /**
+   * List the tools the runtime may add to an agent besides its "tools" list: the
+   * website_* tools, and render_cruse when CRUSE is on.
+   *
+   * :param manifest: The parsed manifest, or null.
+   * :param resolved: The resolved network.
+   * :return: The added tool names.
+   */
+  offeredTools(manifest, resolved) {
+    const names = this.websiteToolNames(manifest);
     if (resolved.cruse) {
       names.push("render_cruse");
     }
@@ -1080,7 +1093,16 @@ class NetworkBuilder {
         console.log(`  - ${agent.name}: ${size} instruction chars (+${added} CRUSE context added by the runtime); tools: [${names.join(", ")}]`);
       }
       if (this.websiteTools && this.websiteTools.length) {
-        console.log(`Added to every agent by the runtime: ${this.websiteTools.join(", ")}`);
+        console.log(`Website tools from actions.agentTools: ${this.websiteTools.join(", ")}`);
+        // The runtime gives each agent only the ones registered where its network runs.
+        let shared = " Called from another site, it gets none, because no bridge shares actions.";
+        if (this.writesBridge && this.bridgeModule) {
+          shared = ` Called from another site, it gets the ones bridge/${NetworkBuilder.BRIDGE_MODULE} shares with that site.`;
+        }
+        console.log(`  On this site's page, an agent gets the ones the page registers as local-only.${shared}`);
+      }
+      if (this.cruse) {
+        console.log("Added to every agent by the runtime: render_cruse");
       }
       if (this.writesBridge && this.bridgeModule) {
         console.log(`Bridge: bridge/action-bridge.html (shares the actions in bridge/${NetworkBuilder.BRIDGE_MODULE} with the callers they list)`);

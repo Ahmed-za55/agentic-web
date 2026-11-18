@@ -118,7 +118,9 @@ unused or unlisted `website_*` tools, manifest mismatches, a missing or misplace
 bridge, partner URLs the runtime would refuse, and partners with no consent-card label.
 It also writes the discovery files, which copy parts of the manifest: `agent-mcp.json`,
 `.well-known/<protocol_name>.json` and `.well-known/<protocol_name>-agent.json`. It prints
-the tools the runtime adds to every agent, which the `tools` lists do not show. Fix every
+the tools the runtime adds, which the `tools` lists do not show: the `website_*` tools, and
+where an agent gets them (the page's own actions, or the bridge's when another site calls
+it), and `render_cruse` when CRUSE is on. Fix every
 error. Fix the warnings too, or tell the user why one stays. Never edit generated files by
 hand: change the `.hocon` or the manifest and rebuild.
 
