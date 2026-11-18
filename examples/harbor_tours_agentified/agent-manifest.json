@@ -81,7 +81,8 @@
       "remove_trip_from_basket",
       "reserve_basket",
       "look_up_reservation",
-      "cancel_reservation"
+      "cancel_reservation",
+      "book_departure"
     ]
   }
 }

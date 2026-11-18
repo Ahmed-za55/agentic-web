@@ -43,6 +43,12 @@ export class LinkCallRun {
     // Each dialog other than a consent card, with when it appeared.
     this.dialogs = [];
     this.cardTexts = [];
+    // The chat's prompts for a partner's window, and what the window showed.
+    this.windowPrompts = [];
+    this.windowSession = null;
+    this.windowUrl = null;
+    this.windowText = null;
+    this.windowActed = false;
     this.setup = null;
     this.started = Date.now();
     this.sentAt = null;
@@ -356,14 +362,69 @@ export class LinkCallRun {
   }
 
   /**
+   * Press a button on the chat's prompt for a partner's window, as a user gesture, so the
+   * page may open the window.
+   *
+   * :param choice: "open" or "cancel".
+   */
+  async answerWindowPrompt(choice) {
+    await this.client.send("Runtime.evaluate", {
+      expression: PageScripts.answerWindowPrompt(choice),
+      userGesture: true,
+      replMode: true,
+    }, this.page);
+    this.note(`window prompt answered: ${choice}`, null);
+  }
+
+  /**
+   * Find the partner's window this page opened, attach to it once, and fill in or cancel
+   * its form.
+   *
+   * :param plan: {origin, fields, submit}: the partner's origin and what to do in its window.
+   */
+  async driveWindow(plan) {
+    if (this.windowSession === null) {
+      const targets = await this.client.send("Target.getTargets", {});
+      for (const info of targets.targetInfos) {
+        if (this.windowSession === null && info.type === "page" && info.targetId !== this.target
+          && info.browserContextId === this.context && info.url.startsWith(`${plan.origin}/`)) {
+          const attached = await this.client.send("Target.attachToTarget", {
+            targetId: info.targetId,
+            flatten: true,
+          });
+          this.windowSession = attached.sessionId;
+          this.windowUrl = info.url;
+          await this.client.send("Runtime.enable", {}, this.windowSession);
+          this.note("partner window attached", info.url);
+        }
+      }
+    }
+    if (this.windowSession === null || this.windowActed) {
+      return;
+    }
+    try {
+      const state = JSON.parse(await this.client.evaluate(this.windowSession, PageScripts.answerPartnerWindow(plan.fields, plan.submit)));
+      if (state.acted) {
+        this.windowActed = true;
+        this.windowText = this.scrub(state.text);
+        this.note(plan.submit ? "partner window form submitted" : "partner window cancelled", null);
+      }
+    } catch (error) {
+      // The window may still be loading, or it closed once its result was sent back.
+    }
+  }
+
+  /**
    * Send one message, answer every consent card the same way, cancel every other dialog,
-   * and wait for the turn to end.
+   * and wait for the turn to end. A prompt for a partner's window is opened and its form
+   * filled in when a plan is given, and cancelled otherwise.
    *
    * :param message: The visitor's message.
    * :param decision: "allow", "always" or "decline".
    * :param timeoutMs: How long the turn may take.
+   * :param windowPlan: {origin, fields, submit} for a partner's window, or null.
    */
-  async turn(message, decision, timeoutMs) {
+  async turn(message, decision, timeoutMs, windowPlan = null) {
     await this.evaluate(PageScripts.send(message));
     this.sentAt = Date.now();
     this.note("message sent", message);
@@ -387,6 +448,13 @@ export class LinkCallRun {
           this.consentAnsweredAt = Date.now();
         }
         this.note(`consent card answered: ${decision}`, state.consent);
+      }
+      if (state.actionWindow !== null) {
+        this.windowPrompts.push(this.scrub(state.actionWindow));
+        await this.answerWindowPrompt(windowPlan === null ? "cancel" : "open");
+      }
+      if (windowPlan !== null) {
+        await this.driveWindow(windowPlan);
       }
       if (state.dialogs.length) {
         for (const text of state.dialogs) {
@@ -505,6 +573,12 @@ export class LinkCallRun {
       },
       cards: collected.cards,
       cardTexts: this.cardTexts,
+      windowPrompts: this.windowPrompts,
+      partnerWindow: {
+        url: this.windowUrl,
+        acted: this.windowActed,
+        text: this.windowText,
+      },
       frames: this.frames,
       polledFrames: this.polledFrames,
       dialogs: this.dialogs,

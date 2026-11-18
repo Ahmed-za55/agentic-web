@@ -73,6 +73,17 @@ export class MockRouter {
     this.onwardTool = null;
     // The website tool the partner reads first, with its arguments, or null for none.
     this.partnerRead = null;
+    // Texts no model request may hold, such as details a visitor types in a partner's window.
+    this.watched = [];
+  }
+
+  /**
+   * Flag every chat request that holds one of these texts from now on.
+   *
+   * :param texts: The texts, or an empty list to stop.
+   */
+  watch(texts) {
+    this.watched = texts;
   }
 
   /**
@@ -191,6 +202,12 @@ export class MockRouter {
       toolNames.push(String((tool.function || {}).name));
     }
     record.model = parsed.model;
+    record.watchedSeen = [];
+    for (const text of this.watched) {
+      if (body.includes(text)) {
+        record.watchedSeen.push(text);
+      }
+    }
     record.role = "caller";
     if (lastUser === this.request) {
       record.role = "partner";

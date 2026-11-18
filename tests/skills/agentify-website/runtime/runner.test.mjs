@@ -1,6 +1,7 @@
 // Checks which site actions the skill's runtime gives an agent as website_* tools. The
-// visitor's own site gets its local-only actions. A partner network gets only the reads
-// its own bridge shares with this page, never this page's actions, and nothing else.
+// visitor's own site gets its local-only actions. A partner network gets only the actions
+// its own bridge shares with this page, never this page's actions, and its writes are
+// confirmed in its own window, not with this page's dialog.
 // Run from the repository root: node --test "tests/**/*.test.mjs"
 // The registry and the network are built in memory. No model is called.
 import assert from "node:assert/strict";
@@ -139,6 +140,15 @@ class WebsiteToolTest {
   }
 
   /**
+   * Decline every confirmation, as a visitor who clicks Cancel in the page's dialog.
+   *
+   * :return: False.
+   */
+  static async decline() {
+    return false;
+  }
+
+  /**
    * Take a trace note and do nothing.
    */
   static ignore() {}
@@ -169,13 +179,13 @@ class WebsiteToolTest {
   }
 
   /**
-   * A partner gets only the reads its bridge shares that its own agentTools lists: not a
-   * write, not a read that needs its own window, not one it leaves out of agentTools, and
-   * never the page's own actions.
+   * A partner gets only the actions its bridge shares that its own agentTools lists, reads
+   * and writes: not one that needs a top-level window on every call, not one it leaves out
+   * of agentTools, and never the page's own actions.
    */
-  static async testPartnerGetsOnlyItsSharedReads() {
+  static async testPartnerGetsOnlyItsSharedActions() {
     const ctx = WebsiteToolTest.context(WebsiteToolTest.registry(), false);
-    assert.deepEqual(await WebsiteToolTest.websiteTools(ctx), ["website_find_departures"]);
+    assert.deepEqual(await WebsiteToolTest.websiteTools(ctx), ["website_find_departures", "website_book_departure"]);
   }
 
   /**
@@ -199,7 +209,7 @@ class WebsiteToolTest {
       {
         ctx: partner,
         action: WebsiteToolTest.definition("book_departure", "irreversible", "bridge"),
-        reason: "a partner network gets only read actions",
+        reason: "",
       },
       {
         ctx: partner,
@@ -233,28 +243,42 @@ class WebsiteToolTest {
   }
 
   /**
-   * A partner's call to a shared read runs it. A call that names a refused action, or the
-   * page's own action, is refused when the model makes it, even if the model guessed it.
+   * List each registered action's ref by "<base>#<name>".
+   *
+   * :param registry: The registry.
+   * :return: The refs.
    */
-  static async testPartnerCallsAreCheckedAgain() {
-    const registry = WebsiteToolTest.registry();
-    const ctx = WebsiteToolTest.context(registry, false);
+  static refs(registry) {
     const refs = new Map();
     for (const entry of registry.entries.values()) {
       refs.set(`${entry.base}#${entry.name}`, entry.ref);
     }
-    const read = await dispatchToolCall(ctx, {
-      kind: "website",
-      ref: refs.get(`${WebsiteToolTest.PARTNER}#find_departures`),
-    }, {}, null, []);
-    assert.equal(read.status, "succeeded");
-    assert.deepEqual(read.result, {
-      ok: true,
-      ran: "find_departures",
-    });
+    return refs;
+  }
+
+  /**
+   * A partner's call to a shared read or write runs it. A call that names a refused
+   * action, or the page's own action, is refused when the model makes it, even if the
+   * model guessed it.
+   */
+  static async testPartnerCallsAreCheckedAgain() {
+    const registry = WebsiteToolTest.registry();
+    const ctx = WebsiteToolTest.context(registry, false);
+    const refs = WebsiteToolTest.refs(registry);
+    for (const name of ["find_departures", "book_departure"]) {
+      const receipt = await dispatchToolCall(ctx, {
+        kind: "website",
+        ref: refs.get(`${WebsiteToolTest.PARTNER}#${name}`),
+      }, {}, null, []);
+      assert.equal(receipt.status, "succeeded", name);
+      assert.deepEqual(receipt.result, {
+        ok: true,
+        ran: name,
+      });
+    }
     const refused = [
-      `${WebsiteToolTest.PARTNER}#book_departure`,
       `${WebsiteToolTest.PARTNER}#get_hidden`,
+      `${WebsiteToolTest.PARTNER}#get_in_window`,
       `${WebsiteToolTest.PAGE}#get_state`,
     ];
     for (const key of refused) {
@@ -264,9 +288,31 @@ class WebsiteToolTest {
       }, {}, null, []), /Website action is not callable by this agent\./, key);
     }
   }
+
+  /**
+   * A partner's irreversible write never asks this page's dialog: the partner's own window
+   * confirms it. The page's own irreversible action still asks, so a decline stops it.
+   */
+  static async testOnlyThePageAsksForItsOwnWrites() {
+    const registry = WebsiteToolTest.registry();
+    const refs = WebsiteToolTest.refs(registry);
+    const partner = Object.assign(WebsiteToolTest.context(registry, false), {confirmWebsiteActions: WebsiteToolTest.decline});
+    const booked = await dispatchToolCall(partner, {
+      kind: "website",
+      ref: refs.get(`${WebsiteToolTest.PARTNER}#book_departure`),
+    }, {}, null, []);
+    assert.equal(booked.status, "succeeded", "The page's dialog was asked about the partner's write.");
+    const top = Object.assign(WebsiteToolTest.context(registry, true), {confirmWebsiteActions: WebsiteToolTest.decline});
+    const own = await dispatchToolCall(top, {
+      kind: "website",
+      ref: refs.get(`${WebsiteToolTest.PAGE}#place_booking`),
+    }, {}, null, []);
+    assert.equal(own.status, "cancelled", "The page's own irreversible action ran without its dialog.");
+  }
 }
 
 test("the visitor's own site gets its local-only actions as tools", WebsiteToolTest.testOwnSiteGetsItsLocalActions);
-test("a partner network gets only the reads its bridge shares and lists in agentTools", WebsiteToolTest.testPartnerGetsOnlyItsSharedReads);
+test("a partner network gets only the actions its bridge shares and lists in agentTools", WebsiteToolTest.testPartnerGetsOnlyItsSharedActions);
 test("each refused action gets its reason", WebsiteToolTest.testRefusalReasons);
 test("a partner's calls are checked again when the model makes them", WebsiteToolTest.testPartnerCallsAreCheckedAgain);
+test("only the page's own irreversible actions ask the page's dialog", WebsiteToolTest.testOnlyThePageAsksForItsOwnWrites);

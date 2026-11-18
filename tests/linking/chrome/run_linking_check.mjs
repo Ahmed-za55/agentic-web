@@ -177,6 +177,53 @@ class LinkingCheck {
   };
 
   /**
+   * The write each partner's agent makes in C10 and C11, and what the visitor types in the
+   * partner's window. No model request may hold those details. The tour date is set when
+   * the check runs, a few days ahead, so the trip can be booked online.
+   */
+  static WRITES = {
+    tours: {
+      tool: "website_book_departure",
+      args: {
+        tourId: "seal-rocks",
+        date: "",
+        time: "10:00",
+        adults: 2,
+        children: 0,
+        under4s: 0,
+      },
+      fields: {
+        firstName: "Ada",
+        lastName: "Lovelace",
+        email: "ada.lovelace@example.com",
+        phone: "555 0100 200",
+      },
+      resultKeys: ["ok", "code", "status", "trips", "total", "cancelBy", "note"],
+      id: "code",
+    },
+    pizza: {
+      tool: "website_place_order",
+      args: {
+        items: [
+          {
+            id: "margherita",
+            quantity: 2,
+          },
+        ],
+        fulfillment: "delivery",
+      },
+      fields: {
+        customerName: "Ada Lovelace",
+        fulfillment: "delivery",
+        address: "12 Harbor Row",
+        orderTime: "",
+      },
+      resultKeys: ["ok", "orderId", "items", "total", "fulfillment", "when", "note"],
+      id: "orderId",
+    },
+  };
+
+  /**
    * The page files a bridge must never load: they start the page, or are the page.
    */
   static PAGE_STARTERS = ["/site-actions.js", "/site.js", "/js/app.js", "/index.html"];
@@ -849,6 +896,11 @@ class LinkingCheck {
       if (context.shared.tools.includes(LinkingCheck.STATE_READS[context.partnerRole])) {
         await this.casePartnerRead(context);
       }
+      const write = LinkingCheck.WRITES[context.partnerRole];
+      if (write && context.shared.tools.includes(write.tool)) {
+        await this.casePartnerWrite(context, true);
+        await this.casePartnerWrite(context, false);
+      }
       if (this.options.sameHost) {
         await this.caseSameHost(context);
       }
@@ -900,9 +952,33 @@ class LinkingCheck {
   }
 
   /**
+   * List the actions a site's bridge module shares with any caller.
+   *
+   * :param folder: The site's served folder.
+   * :return: The names, or an empty list when the bridge loads no module.
+   */
+  static async bridgeActionNames(folder) {
+    const names = [];
+    const bridge = JSON.parse(await readFile(path.join(folder, "bridge", "agent-manifest.json"), "utf8"));
+    const module = (bridge.actions || {}).module;
+    if (!module) {
+      return names;
+    }
+    const loaded = await import(pathToFileURL(path.join(folder, "bridge", module)).href);
+    const definitions = [];
+    loaded.registerActions({register: definitions.push.bind(definitions)});
+    for (const definition of definitions) {
+      if (definition.availability === "bridge") {
+        names.push(definition.name);
+      }
+    }
+    return names;
+  }
+
+  /**
    * Read what a partner site declares it shares with one caller: the actions its bridge
-   * module lists for the caller's origin, and the reads among them that its agents may
-   * call, as the website_* tools the partner's agents should get.
+   * module lists for the caller's origin, and those among them that its agents may call,
+   * as the website_* tools the partner's agents should get.
    *
    * :param folder: The partner's served folder.
    * :param callerOrigin: The calling site's origin.
@@ -931,7 +1007,7 @@ class LinkingCheck {
         continue;
       }
       shared.actions.push(definition.name);
-      if (definition.availability === "bridge" && definition.effect === "read" && agentTools.includes(definition.name)) {
+      if (definition.availability === "bridge" && agentTools.includes(definition.name)) {
         shared.tools.push(`website_${definition.name}`);
       }
     }
@@ -946,9 +1022,10 @@ class LinkingCheck {
    * :param model: The visitor's model, or "" for none.
    * :param decision: The answer on each consent card.
    * :param callerUrl: The page to open.
+   * :param windowPlan: {origin, fields, submit} for a partner's window, or null.
    * :return: The evidence.
    */
-  async visitorTurn(context, model, decision, callerUrl) {
+  async visitorTurn(context, model, decision, callerUrl, windowPlan = null) {
     this.router.use(context.spec.request, 1);
     this.router.aim(context.tool, null);
     const since = Date.now();
@@ -957,7 +1034,7 @@ class LinkingCheck {
     try {
       await run.open(callerUrl);
       await run.applySetup(`http://127.0.0.1:${LinkingCheck.ROUTER_PORT}/v1`, model);
-      await run.turn(context.spec.message, decision, LinkingCheck.TURN_TIMEOUT_MS);
+      await run.turn(context.spec.message, decision, LinkingCheck.TURN_TIMEOUT_MS, windowPlan);
       await run.finish();
     } catch (caught) {
       error = String(caught.message || caught);
@@ -1406,6 +1483,99 @@ class LinkingCheck {
   }
 
   /**
+   * A date some days from today, in this machine's time zone, as YYYY-MM-DD.
+   *
+   * :param days: How many days ahead.
+   * :return: The date.
+   */
+  static daysAhead(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  /**
+   * C10 and C11: the partner's agent calls the write its bridge shares with the calling
+   * site. The chat asks before the partner's window opens, and the page shows no dialog
+   * of its own. In the window the visitor types their details and submits (C10) or
+   * cancels (C11). The details never reach a model, and the result reaches the caller.
+   *
+   * :param context: The direction context.
+   * :param submit: True to submit the window's form, false to cancel it.
+   */
+  async casePartnerWrite(context, submit) {
+    const write = LinkingCheck.WRITES[context.partnerRole];
+    const args = Object.assign({}, write.args);
+    if (args.date === "") {
+      args.date = LinkingCheck.daysAhead(3);
+    }
+    const typed = [];
+    for (const value of Object.values(write.fields)) {
+      // The pickup or delivery choice is no personal detail.
+      if (value && value !== "delivery") {
+        typed.push(value);
+      }
+    }
+    this.router.read(write.tool, args);
+    this.router.watch(typed);
+    let evidence = null;
+    try {
+      evidence = await this.visitorTurn(context, LinkingCheck.VISITOR_MODEL, "allow", context.callerUrl, {
+        origin: context.partnerOrigin,
+        fields: write.fields,
+        submit: submit,
+      });
+    } finally {
+      this.router.read(null, null);
+      this.router.watch([]);
+    }
+    const checks = [];
+    const expect = LinkingCheck.expect;
+    expect(checks, evidence.error === null, `the driver ran without error (${evidence.error})`);
+    expect(checks, evidence.outcome === "ended", `the turn ended (${evidence.outcome})`);
+    expect(checks, evidence.cards === 1, `exactly one consent card (${evidence.cards})`);
+    const prompt = evidence.windowPrompts[0] || "";
+    expect(checks, evidence.windowPrompts.length === 1 && prompt.includes(`Open ${context.label}`), `one chat prompt to open ${context.label}'s window ("${prompt.replace(/\s+/g, " ").slice(0, 160)}")`);
+    expect(checks, evidence.dialogs.length === 0, `the calling page showed no dialog of its own (${evidence.dialogs.length})`);
+    const window = evidence.partnerWindow;
+    expect(checks, String(window.url).startsWith(`${context.partnerOrigin}/bridge/action-bridge.html`), `the window opened on the partner's bridge page (${window.url})`);
+    expect(checks, window.acted, `the window showed its form and the check ${submit ? "submitted" : "cancelled"} it`);
+    let receipt = null;
+    for (const chat of LinkingCheck.chats(evidence, "partner")) {
+      if (chat.lastToolResult) {
+        try {
+          receipt = JSON.parse(chat.lastToolResult);
+        } catch (error) {
+          receipt = null;
+        }
+      }
+    }
+    const result = receipt !== null && receipt.result ? receipt.result : {};
+    expect(checks, receipt !== null && receipt.status === "succeeded", `the write's receipt says succeeded (${receipt === null ? "no result" : receipt.status})`);
+    if (submit) {
+      expect(checks, result.ok === true && typeof result[write.id] === "string" && result[write.id].length > 0, `the result has ${write.id} ${result[write.id]}`);
+      expect(checks, JSON.stringify(Object.keys(result)) === JSON.stringify(write.resultKeys), `the result has only ${write.resultKeys.join(", ")} (${Object.keys(result).join(", ")})`);
+    } else {
+      expect(checks, result.ok === false && /cancelled/.test(String(result.reason)), `the result says the visitor cancelled (${result.reason})`);
+    }
+    const seen = [];
+    for (const record of evidence.router) {
+      for (const text of record.watchedSeen || []) {
+        seen.push(`${record.role}: ${text}`);
+      }
+    }
+    expect(checks, seen.length === 0, `no model request held a detail typed in the window (${seen.join("; ")})`);
+    const answer = evidence.finalAnswer || "";
+    expect(checks, answer.startsWith(`CALLER_FINAL: PARTNER_ANSWER: ${write.tool} said status succeeded`), `the write's result reached the caller ("${answer.slice(0, 200)}")`);
+    const notes = [
+      `the partner's agent called ${write.tool}; the window ${submit ? "booked or ordered" : "was cancelled"}`,
+    ];
+    await this.record(submit ? "C10" : "C11", context.name, LinkingCheck.status(checks), checks, notes, evidence);
+  }
+
+  /**
    * C7: the caller opened under the partner's host name. Reports whether the runtime's
    * key cookie reached the partner's host. It never fails the run.
    *
@@ -1472,15 +1642,18 @@ class LinkingCheck {
     const expect = LinkingCheck.expect;
     expect(checks, error === null, `the page booted and ran the check (${error})`);
     const registered = result === null ? [] : result.registered;
+    // A name the page does not register may be an action only the site's bridge shares,
+    // such as a booking that runs in the site's own window.
+    const bridgeOnly = await LinkingCheck.bridgeActionNames(this.served[role]);
     const missing = [];
     for (const name of agentTools) {
-      if (!registered.includes(name)) {
+      if (!registered.includes(name) && !bridgeOnly.includes(name)) {
         missing.push(name);
       }
     }
     expect(checks, result !== null && result.status === "succeeded", `the keyless read check returned succeeded (${result === null ? "no result" : `${result.action}: ${result.status}`})`);
     expect(checks, registered.length >= 1 && result.summary === `${registered.length} website actions connected`, `the status shows "${registered.length} website actions connected" ("${result === null ? "" : result.summary}")`);
-    expect(checks, missing.length === 0, `every agentTools action is registered (missing: ${missing.join(", ")})`);
+    expect(checks, missing.length === 0, `every agentTools action is registered on the page or shared by the bridge (missing: ${missing.join(", ")})`);
     const evidence = run.evidence();
     evidence.readCheck = result;
     await this.record("C5", role, LinkingCheck.status(checks), checks, [], evidence);

@@ -59,9 +59,9 @@ Follow `references/network_design.md`. The defaults are:
 - no `demo_mode`; facts only from tool results; a list of what the site cannot do;
 - shared rules in `commondefs.replacement_strings`, with CRUSE rules on the front agent only;
 - sample queries the site can really answer, plus one it must decline;
-- other agent websites can run every site's network, with only the reads its
-  `bridge/bridge-actions.js` shares with them, if any ("Share reads" in
-  `references/linking.md`);
+- other agent websites can run every site's network, with only the reads, and any
+  booking, its `bridge/bridge-actions.js` shares with them ("Share reads" and "Share a
+  booking" in `references/linking.md`);
 - a partner site with an agent network is a tool named by its full network URL, never a
   link slot.
 
@@ -245,7 +245,7 @@ Tell the user:
 | `references/site_actions.md` | Action registry, effects, receipts, what to test |
 | `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting, discovery |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
-| `references/linking.md` | Calls between agent sites: the bridge, shared reads, partner sites, checks |
+| `references/linking.md` | Calls between agent sites: the bridge, shared reads and bookings, partner sites, checks |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `scripts/serve_site.mjs` | Local server that sends the CORS header on the public files |

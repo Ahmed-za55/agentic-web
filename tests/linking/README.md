@@ -38,7 +38,8 @@ serves the site folders from disk under the URLs above through a stub `fetch`, a
 model requests with the scripted router, and stands in for the partner's bridge frame. The
 fake frame imports the module the bridge's manifest names from the site's folder, and
 shares what `runtime/action-transport.js` would: actions that are not local-only, for the
-origins in their `callerOrigins`, or for every origin with `"*"`. It runs reads only. No
+origins in their `callerOrigins`, or for every origin with `"*"`. It runs reads only: a
+write needs the partner's own window, so only the Chrome check (C10, C11) runs one. No
 port is used and nothing leaves the process. Run them with the other tests, from the
 repository root:
 
@@ -101,9 +102,11 @@ node tests/linking/chrome/run_linking_check.mjs [--chrome <path>]
 | C2 | C1 with no visitor model: every chat request uses the calling site's front-agent model. When both sites name the same model, the check serves a copy of the partner whose network names another model, then serves the partner itself again, and a note says so. |
 | C3 | Decline: no request at all reaches the partner's host. |
 | C4 | C1 when an example site calls, not the fixture caller. |
-| C5 | Each site's own page, with no key: the keyless read check returns `succeeded`, and the status line shows "N website actions connected". |
+| C5 | Each site's own page, with no key: the keyless read check returns `succeeded`, and the status line shows "N website actions connected". Each `agentTools` name is registered on the page or shared by the site's bridge. |
 | C6 | Each bridge page opened directly reads "Open this page through an agent action.", loads none of the page or the files that start it (`index.html`, `site-actions.js`, `site.js`, `js/app.js`), and logs no error. A note lists the site modules its `bridge-actions.js` imports. Chrome's own `/favicon.ico` request is not counted. |
 | C9 | For each direction whose partner shares its state read with the caller: the partner's agent calls it. The partner served its bridge page twice, for the catalog and for the read, and `bridge/bridge-actions.js` and `index.html`, which the bridge fetches and parses with the browser's `DOMParser`. The read succeeded, its result has the page's facts with their text, and no fact link points into `bridge/`. No "Continue at" dialog, and no partner request has `Authorization` or the key cookie. The result reached the calling site. |
+| C10 | For each direction whose partner shares a booking or an order with the caller (the guesthouse to the tour site and to the pizza site): the partner's agent calls it. One consent card, then one chat prompt that names the partner and opens its window, and no dialog on the calling page. The check clicks Open, types a name, email and phone or address in the partner's window, and submits. The window is the partner's bridge page. The receipt succeeded, and the result has only the code or order number and what was booked. No model request held a typed detail. The result reached the calling site. |
+| C11 | C10, but the check presses Cancel in the partner's window. The result says the visitor cancelled. |
 | C7 | `--same-host`, for information: the calling page opened under the partner's host name. It reports whether the key cookie reached the partner's host. It skips a direction whose two servers listen on different addresses, such as any with the pizza site. |
 | C8 | `--no-bridge`, for information, for the first direction that runs: the partner served without its bridge. It reports the 10-second wait and the "Continue at" dialog. For another direction, pass it with `--direction`. |
 
@@ -115,8 +118,9 @@ the run.
 The router (`chrome/mock_router.mjs`) works for any skill-built network. A request whose
 last user message is the scripted request comes from the partner: it answers
 `PARTNER_ANSWER:` with the `website_*` tools it was offered and whether its prompt holds the
-runtime's "No browser actions" note. For L11, `read()` makes it call one of those tools
-first and answer with the result. Only for L10, it first calls its own partner tool once with a second
+runtime's "No browser actions" note. For L11, C9, C10 and C11, `read()` makes it call one
+of those tools first and answer with the result. For C10 and C11, `watch()` flags any
+request that holds a detail typed in the partner's window. Only for L10, it first calls its own partner tool once with a second
 request, and that partner answers `NESTED_ANSWER:`. Any other request comes from
 the calling site: it calls the direction's partner tool, one of those whose description
 starts with "Hand off to the", then answers `CALLER_FINAL:` with the partner's text. Each

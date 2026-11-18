@@ -135,8 +135,12 @@ Other agent sites can call this network at
 `http://localhost:8081/marrow_point_harbor_tours`. It then runs in their
 visitor's browser with the reads this site shares with the guesthouse and the
 pizza site in `bridge/bridge-actions.js`: the tours and the page's facts, the
-Good to know page, and the departures on a date. The basket and reservations
-stay on this page.
+Good to know page, and the departures on a date. It also shares one booking
+with the guesthouse, `book_departure` in `bridge/booking-window.js`. That opens
+this site's own window, where the visitor checks the trip and types their own
+details, and the guesthouse's chat gets back only the reservation code and the
+trip. The demo has no server, so that booking lives only in that window. The
+basket and the reservations made on this page stay on this page.
 
 These addresses work only on this machine. Before hosting, put each partner's
 https network URL in the `.hocon` file's `tools` and `link_labels`, and its
@@ -210,8 +214,9 @@ guesthouse's origin in `connect-src` and `frame-src`.
 - `agent-manifest.json`, `links.json`: the public files other agent sites read.
 - `agent-mcp.json`, `.well-known/`: discovery files, built from the manifest.
 - `bridge/`: the page other agent sites load in a hidden frame.
-  `bridge-actions.js` holds the reads it shares with them; the build script writes
-  the page and its manifest.
+  `bridge-actions.js` holds the reads it shares with them, and
+  `booking-window.js` the booking it shares with the guesthouse; the build
+  script writes the page and its manifest.
 - `runtime/`: the browser runtime, copied unchanged from the skill.
 - `tests/`: Node tests for the network, the actions and the dialogs.
 

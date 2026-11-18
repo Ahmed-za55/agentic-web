@@ -1,16 +1,19 @@
-// The read action this site shares with other agent sites, through its action bridge.
+// The actions this site shares with other agent sites, through its action bridge.
 // bridge/agent-manifest.json loads this module in the bridge frame, which has no pizza
 // page. So it reads the menu and the clock, and fetches the page's HTML for its facts.
-// The action has the name the page's own action has (site-actions.js), so the network's
-// instructions fit both.
+// The read has the name the page's own action has (site-actions.js), so the network's
+// instructions fit both. The order is in order-window.js.
 import { App } from "../script.js";
+import { OrderWindow } from "./order-window.js";
 
 /**
  * Shares one read with the partner sites that call this site's network: the menu, today's
  * date and time, and the page's facts, such as opening hours, delivery and the address.
+ * It also shares a demo order with the guesthouse.
  *
- * A partner's agent calls it from the partner's page, and each call runs here, in a hidden
- * frame on this site's origin. A partner has no cart or order, so they are left out.
+ * A partner's agent calls them from the partner's page. The read runs here, in a hidden
+ * frame on this site's origin. The order runs in a window on this site, where the visitor
+ * confirms it. A partner has no cart, so the page's cart actions are left out.
  */
 class BridgeActions {
   /**
@@ -29,12 +32,13 @@ class BridgeActions {
   static PAGE = new URL("../index.html", import.meta.url).href;
 
   /**
-   * Register the shared read with the bridge's registry.
+   * Register the shared read and the order with the bridge's registry.
    *
    * :param actions: The runtime registry facade with a register(definition) method.
    */
   static registerActions(actions) {
     actions.register(BridgeActions.readStateAction());
+    actions.register(OrderWindow.definition());
   }
 
   /**

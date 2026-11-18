@@ -1,8 +1,9 @@
-// The read actions this site shares with other agent sites, through its action bridge.
+// The actions this site shares with other agent sites, through its action bridge.
 // bridge/agent-manifest.json loads this module in the bridge frame, which has no tour
 // page. So it reads the tour data and a fresh trip book, and fetches the page's HTML for
-// its facts. Each action has the name the page's own action has (site-actions.js), so the
-// network's instructions fit both.
+// its facts. Each read has the name the page's own action has (site-actions.js), so the
+// network's instructions fit both. The booking is in booking-window.js.
+import { BookingWindow } from "./booking-window.js";
 import { GoodToKnow } from "../js/good-to-know.js";
 import { ToursPage } from "../js/tours-page.js";
 import { TripBook } from "../js/trip-book.js";
@@ -10,10 +11,12 @@ import { TripBook } from "../js/trip-book.js";
 /**
  * Shares three reads with the partner sites that call this site's network: the tours with
  * today's date and the page's facts, the departures on a date, and the Good to know page.
+ * It also shares a booking with the guesthouse.
  *
- * A partner's agent calls them from the partner's page, and each call runs here, in a
- * hidden frame on this site's origin. The trip book starts from the site's fixed
- * reservations, like a fresh tour page. A real site would read its own server here.
+ * A partner's agent calls them from the partner's page. Each read runs here, in a hidden
+ * frame on this site's origin. The booking runs in a window on this site, where the
+ * visitor confirms it. The trip book starts from the site's fixed reservations, like a
+ * fresh tour page. A real site would read its own server here.
  */
 class BridgeActions {
   /**
@@ -33,7 +36,7 @@ class BridgeActions {
   static POLICIES = new URL("../policies.html", import.meta.url).href;
 
   /**
-   * Register the shared reads with the bridge's registry.
+   * Register the shared reads and the booking with the bridge's registry.
    *
    * :param actions: The runtime registry facade with a register(definition) method.
    */
@@ -41,6 +44,7 @@ class BridgeActions {
     actions.register(BridgeActions.toursAction());
     actions.register(BridgeActions.goodToKnowAction());
     actions.register(BridgeActions.departuresAction());
+    actions.register(BookingWindow.definition());
   }
 
   /**

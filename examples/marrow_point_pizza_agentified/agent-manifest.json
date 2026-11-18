@@ -77,7 +77,8 @@
       "get_restaurant_state",
       "add_to_cart",
       "set_cart_quantities",
-      "place_demo_order"
+      "place_demo_order",
+      "place_order"
     ]
   }
 }

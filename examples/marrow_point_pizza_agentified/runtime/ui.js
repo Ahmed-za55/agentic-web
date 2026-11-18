@@ -24,7 +24,7 @@ import { effectiveModel, isPlaceholderModel, normalizeModelName } from "./model.
 import { normalizePresentation } from "./cruse.js";
 import { PRESENTATION_CSS, renderMarkdown, renderRichComponent } from "./cruse-render.js";
 import { createTurnStatusController } from "./turn-status.js";
-import { reviewActions } from "./action-transport.js";
+import { reviewActions, setActionWindowPrompt } from "./action-transport.js";
 import { OpenRouterConnect } from "./openrouter-connect.js";
 import { InUseLine } from "./in-use-line.js";
 
@@ -919,7 +919,10 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   });
 
   // --- cross-network consent (approve calls to other hosted networks) ------
+  // Each partner's name by host, from its consent card, for the window prompt below.
+  const peerLabels = new Map();
   engine.onConsent = (info) => new Promise((resolve) => {
+    peerLabels.set(info.peerOrigin, info.peerLabel);
     statusEl.classList.remove("busy");
     statusText.textContent = `Waiting for your OK to contact ${info.peerLabel}…`;
     const tokens = info.est?.totalTokens ? `~${Number(info.est.totalTokens).toLocaleString()} tokens` : "";
@@ -948,6 +951,55 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
       }, { once: true }),
     );
   });
+
+  // --- partner action window (a partner's write opens its own site's window) ----
+  // Asked in the chat, with the partner's name, in place of the transport's generic
+  // dialog. The window opens in the visitor's click, so the browser does not block it.
+  setActionWindowPrompt(({ url, origin, brand, signal }) => new Promise((resolve, reject) => {
+    const host = new URL(origin).host;
+    const label = peerLabels.get(host) || brand || host;
+    statusEl.classList.remove("busy");
+    statusText.textContent = `Waiting for you to open ${label}…`;
+    const el = document.createElement("div");
+    el.className = "ns-msg bot ns-consent ns-action-window";
+    el.innerHTML =
+      `<div class="ns-consent-title"><b>${escapeHtml(label)}</b> will open its own window, so you can check and finish this there.</div>` +
+      `<div class="ns-consent-sub">Opens on ${escapeHtml(host)}</div>` +
+      `<div class="ns-consent-actions">` +
+        `<button data-d="open">Open ${escapeHtml(label)}</button>` +
+        `<button data-d="cancel" class="ghost">Cancel</button>` +
+      `</div>`;
+    msgs.appendChild(el);
+    msgs.scrollTop = msgs.scrollHeight;
+    const finish = (text) => {
+      const done = document.createElement("div");
+      done.className = "ns-consent-done";
+      done.textContent = text;
+      el.querySelector(".ns-consent-actions")?.replaceWith(done);
+    };
+    const stop = () => {
+      finish("✕ Cancelled");
+      statusEl.classList.add("busy");
+      reject(new Error("Action window cancelled; action not started."));
+    };
+    signal?.addEventListener("abort", stop, { once: true });
+    el.querySelector('[data-d="open"]').addEventListener("click", () => {
+      const popup = window.open(url, "_blank", "popup,width=700,height=650");
+      if (!popup) {
+        el.querySelector(".ns-consent-sub").textContent = "Your browser blocked the window. Allow pop-ups for this page, then click again.";
+        return;
+      }
+      signal?.removeEventListener("abort", stop);
+      finish(`✓ Opened ${label}`);
+      statusEl.classList.add("busy");
+      statusText.textContent = `Waiting for ${label}…`;
+      resolve(popup);
+    });
+    el.querySelector('[data-d="cancel"]').addEventListener("click", () => {
+      signal?.removeEventListener("abort", stop);
+      stop();
+    }, { once: true });
+  }));
 
   // --- node inspector (instructions + what the agent did) ------------------
   const modal = root.querySelector("#ns-modal");
