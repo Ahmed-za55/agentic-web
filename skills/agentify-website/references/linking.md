@@ -56,7 +56,9 @@ partners, each after its own card (`runtime/engine.js`, `_assertAllowedPeer`).
   (`runtime/runner.js`, `websiteToolRefusal`). Each call runs the partner's own code on
   the partner's origin (`runtime/action-transport.js`, `registerRemoteActions`).
   - A read runs in a new hidden frame.
-  - A write, such as a booking, runs in the partner's own window. First the chat asks in
+  - A write, meaning any action that changes something (`effect: "write"` or
+    `"irreversible"`), such as a booking or an order, runs in the partner's own window.
+    First the chat asks in
     a message that names the partner and has an Open button, and this page shows no
     dialog of its own (`runtime/ui.js`, `setActionWindowPrompt`). In the window, the
     partner's form shows what will happen and takes the visitor's details, so they never
@@ -86,7 +88,8 @@ Do this for every site.
    (`runtime/action-transport.js`, `serveActionBridge`). Do not edit the two files the
    build writes there.
 2. **Share reads.** So that partners can answer with live facts, such as what is free on
-   a date and what it costs, add `bridge/bridge-actions.js`. Like `site-actions.js`, it
+   a date and what it costs, copy `templates/bridge/bridge-actions.js` to
+   `<out>/bridge/bridge-actions.js` and fill in its TODOs. Like `site-actions.js`, it
    exports `registerActions` and registers actions, here the reads other sites may use.
    The build then names it in the bridge's manifest. For each action:
    - give it the name of the page's own action, so the network's instructions fit both,
@@ -101,36 +104,39 @@ Do this for every site.
      the actions listed there;
    - read nothing from the page: the bridge frame has none. Use the site's data and
      business code with a fresh store or the site's server, and for facts that only the
-     page's HTML holds, fetch the page and parse it with `DOMParser`, as the examples'
+     page's HTML holds, fetch the page and parse it with `DOMParser`, as the template's
      `readPage` does;
    - leave out what belongs to one visitor, such as a basket, a form or a booking, and
      anything personal.
 
    Name the kinds of things the site offers in the front agent's first sentence: a
    caller learns little more than that (see "Writing instructions" in
-   `network_design.md`). The examples' `bridge/bridge-actions.js` files show the three
-   kinds: plain data, the site's own rules on a fresh store, and the page's facts.
-3. **Share a booking.** Only if the user wants partners' visitors to book or order from
-   their own chat. Register the write in `bridge/bridge-actions.js` too. The tour site's
-   `bridge/booking-window.js` and the pizza site's `bridge/order-window.js` show how:
-   - set `effect: "irreversible"`, `availability: "bridge"`, and `callerOrigins` to the
-     exact sites that may book. Never `"*"`;
-   - take only what the agent knows, such as the trip and the number of people, or the
-     pizzas. Never names, emails, phone numbers or addresses, and say in the description
-     not to ask for them;
+   `network_design.md`). A read can return three kinds of facts: plain data, the site's
+   own rules run on a fresh store, and the page's facts.
+3. **Share writes.** Only if the user wants partners' visitors to make a change on this
+   site from their own chat, such as a booking, an order or a sign-up. Copy
+   `templates/bridge/write-window.js` to `<out>/bridge/`, one file per write, fill in its
+   TODOs, and register it in `bridge/bridge-actions.js`. For each write:
+   - set `effect: "irreversible"` for a change the visitor cannot undo, or `"write"` for
+     one they can: both open the window. Set `availability: "bridge"`, and set
+     `callerOrigins` to the exact sites that may make it. Never `"*"`;
+   - take only what the agent knows, such as what to book and for how many people. Never
+     names, emails, phone numbers or addresses, and say in the description not to ask for
+     them;
    - in `execute`, check the request with the site's own rules first, and return the
      site's reason before any form when it refuses;
    - then show a form in the window, with the site's stylesheet: what will happen and
-     what it costs, the fields for the visitor's details, and Book and Cancel. Set
-     `confirmsInWindow: true`, so the bridge skips its generic dialog of the raw
-     arguments;
-   - return the code and what was booked, never the details the visitor typed. On
-     Cancel, return `ok: false` with a reason;
+     what it costs, the fields for the visitor's details, and a confirm button that says
+     what it does, and Cancel. Set `confirmsInWindow: true`, so the bridge skips its
+     generic dialog of the raw arguments;
+   - return a reference, such as a code or an order number, and what was done, never the
+     details the visitor typed. On Cancel, return `ok: false` with a reason;
    - add its name to the manifest's `actions.agentTools`. The page has no action of that
      name, so the site's tests must accept a name that only the bridge shares.
 
-   The examples' bookings live only in that window, since the sites have no server. A
-   real site sends them to its own server.
+   The window starts a fresh store, like a fresh page, so it cannot see what the visitor
+   did on the site's page. A site with no server keeps the change only in that window. A
+   real site sends it to its own server.
 4. **Host it.** Serve the files that "Static hosting" in `bundle_and_hosting.md` lists,
    with the headers it gives, the `bridge/` rules included; locally, `serve_site.mjs`
    does this. Use HTTPS in production (spec sections 3.2 and 3.3).
@@ -196,9 +202,10 @@ Do this only when the user names a partner site that publishes an agent network.
    the partner's link, so the agent can send the visitor there. If the page has no link
    to the partner's own page, add one and read its `href` in the read action ("Expose
    page-only facts" in `site_actions.md`): the agent has no other link to give, and the
-   network URL is not a page. If the partner's bridge shares a booking with this site, say
-   in the line that it can book, to ask it only once the visitor agrees, and not to ask
-   for the visitor's details: they type them in the partner's window.
+   network URL is not a page. If the partner's bridge shares a write with this site, such
+   as a booking or an order, say in the line what the partner can do, to ask it only once
+   the visitor agrees, and not to ask for the visitor's details: they type them in the
+   partner's window.
 4. **What goes in a request.** One or two short sentences with exact dates and numbers of
    people. A partner whose bridge shares reads can answer what is free and what it costs;
    one that shares none answers only from its instructions. Keep it under 140
@@ -207,9 +214,10 @@ Do this only when the user names a partner site that publishes an agent network.
 5. **What to promise visitors.** In `GREETING`, the assistant section and the sample
    queries, promise only what a partner can answer from here. `check_partner.mjs` prints
    whether its bridge shares actions. If it shares none, promise "I can ask <partner>
-   what it offers", not free places or prices. Promise a booking only when the partner's
-   bridge shares one with this site. Make the page's own text say the same, and take
-   booking the partner's things off this site's "cannot" list: the agent reads both.
+   what it offers", not free places or prices. Promise a change, such as a booking or an
+   order, only when the partner's bridge shares that write with this site. Make the
+   page's own text say the same, and take that change off this site's "cannot" list: the
+   agent reads both.
 6. **What comes back.** `{partner_rules}` tells the agent how to read it:
 
    | The tool result, or its `text`, starts with | It means |
@@ -239,9 +247,9 @@ Do this only when the user names a partner site that publishes an agent network.
    - that the partner's network runs in this browser on the visitor's key, with only the
      actions the partner's bridge shares with this site, if any, and that a call costs
      more than the card's token estimate;
-   - for a partner that shares a booking, that it opens in the partner's own window,
-     where the visitor types their details, and that the chat gets only the code and
-     what was booked.
+   - for a partner that shares a write, that it opens in the partner's own window, where
+     the visitor types their details, and that the chat gets only a reference, such as a
+     code, and what was done.
 9. **Rebuild and check.** Run the build without `--check`, which writes the network file,
    then the checks in "Check it".
 

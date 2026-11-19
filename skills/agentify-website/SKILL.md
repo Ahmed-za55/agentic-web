@@ -60,8 +60,8 @@ Follow `references/network_design.md`. The defaults are:
 - shared rules in `commondefs.replacement_strings`, with CRUSE rules on the front agent only;
 - sample queries the site can really answer, plus one it must decline;
 - other agent websites can run every site's network, with only the reads, and any
-  booking, its `bridge/bridge-actions.js` shares with them ("Share reads" and "Share a
-  booking" in `references/linking.md`);
+  writes, its `bridge/bridge-actions.js` shares with them ("Share reads" and "Share
+  writes" in `references/linking.md`);
 - a partner site with an agent network is a tool named by its full network URL, never a
   link slot.
 
@@ -101,7 +101,8 @@ Follow `references/site_actions.md`:
 
 Copy `templates/network.hocon` to `<out>/<network>.hocon`, and
 `templates/agent-manifest.json` and `templates/links.json` to `<out>/`. The build writes
-the `bridge/` folder that other agent sites load; do not edit it. If the site calls
+`bridge/action-bridge.html` and `bridge/agent-manifest.json`, which other agent sites
+load; do not edit those two. If the site calls
 partner sites, follow "Call a partner site" in `references/linking.md`; otherwise delete
 the template's partner parts. Replace every `<...>` and `TODO`. The network name is the
 `.hocon` file name and must be the same everywhere. Use the protocol name in
@@ -207,8 +208,8 @@ Tell the user:
     allow, so a model that follows text in a partner's answer could change the page's
     state without asking;
   - every agent can see every `website_*` tool;
-  - callers get no `website_*` tools, so live availability and bookings stay on the
-    site's own page;
+  - partners get only the actions `bridge/bridge-actions.js` shares with them. Without
+    it, live availability and changes such as bookings stay on the site's own page;
   - each partner call runs on the visitor's key after the visitor agrees, at most 4 per
     message and 1 per partner, and costs more than the card's token estimate;
   - a call over a limit still shows its card first, and allowing it only skips the call;
@@ -232,8 +233,8 @@ Tell the user:
 - When unsure whether an action can be undone, make it `irreversible`.
 - Keep the site's business rules in the site's own functions. The actions module only
   wraps them.
-- Do not edit `runtime/`, `bridge/`, `<network>.network.json` or the discovery files by
-  hand.
+- Do not edit `runtime/`, the two files the build writes in `bridge/`,
+  `<network>.network.json` or the discovery files by hand.
 - Do not put keys, tokens or personal data in any published file.
 - Never put a visitor's name, email, phone number or booking code in a request to a
   partner site.
@@ -247,7 +248,7 @@ Tell the user:
 | `references/site_actions.md` | Action registry, effects, receipts, what to test |
 | `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting, discovery |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
-| `references/linking.md` | Calls between agent sites: the bridge, shared reads and bookings, partner sites, checks |
+| `references/linking.md` | Calls between agent sites: the bridge, shared reads and writes, partner sites, checks |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `scripts/serve_site.mjs` | Local server that sends the CORS header on the public files |
@@ -259,4 +260,6 @@ Tell the user:
 | `templates/site.js`, `assistant-section.html`, `assistant.css` | Mounting the assistant in the page |
 | `templates/standalone-index.html` | Page for a companion assistant |
 | `templates/bridge/action-bridge.html` | The build copies it into `<out>/bridge/`; other agent sites load it |
+| `templates/bridge/bridge-actions.js` | The reads, and any write, a site shares with other agent sites |
+| `templates/bridge/write-window.js` | A shared write, made in a window on the site where the visitor confirms it |
 | `templates/tests/` | Node tests with a DOM stand-in and a scripted model |
