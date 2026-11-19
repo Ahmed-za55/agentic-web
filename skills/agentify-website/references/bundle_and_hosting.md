@@ -18,7 +18,9 @@ The agentified site is a copy of the original site with these additions:
   agent-mcp.json              generated from the manifest; do not edit by hand
   .well-known/                generated discovery files (see "How others find the site")
   bridge/action-bridge.html   written by the build; other agent sites load the page in a hidden frame
-  bridge/agent-manifest.json  written by the build; the bridge's own manifest, with no action module
+  bridge/agent-manifest.json  written by the build; the bridge's own manifest, naming bridge-actions.js if the site has it
+  bridge/bridge-actions.js    optional: the reads, and any write, shared with other agent sites (templates/bridge/bridge-actions.js)
+  bridge/write-window.js      optional: a shared write, made in a window on this site (templates/bridge/write-window.js)
   runtime/                    copied unchanged from the skill's runtime/
   tests/                      templates/tests/, filled in for this site
 ```
