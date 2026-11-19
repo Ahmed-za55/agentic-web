@@ -317,9 +317,20 @@ export class App {
    * :return: The facts by topic, each with its text and links.
    */
   pageFacts() {
+    return App.factsIn(document);
+  }
+
+  /**
+   * Read the page's facts from a document of the page: the page itself, or the copy the
+   * action bridge fetches (bridge/bridge-actions.js).
+   *
+   * :param doc: The page's document.
+   * :return: The facts by topic, each with its text and links.
+   */
+  static factsIn(doc) {
     const facts = {};
     for (const [topic, id] of Object.entries(App.FACTS)) {
-      facts[topic] = App.fact(document.querySelector(`#${id}`));
+      facts[topic] = App.fact(doc.querySelector(`#${id}`));
     }
     return facts;
   }
@@ -721,5 +732,9 @@ export class App {
   }
 }
 
-App.page = new App();
-App.page.start();
+// Start only on the site's page. The action bridge (bridge/bridge-actions.js) imports this
+// file for the menu and its helpers, in a frame that has none of the page's elements.
+if (typeof document !== "undefined" && document.querySelector("#menu-items")) {
+  App.page = new App();
+  App.page.start();
+}

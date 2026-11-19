@@ -501,9 +501,10 @@ class CheckPartnerTest {
   }
 
   /**
-   * A partner whose front agent has no peer rule warns, and a long first line is cut.
+   * A partner whose bridge shares no actions is reported as answering only from its
+   * instructions, with no warning, and a long first line is cut.
    */
-  static async testNoPeerRuleWarns() {
+  static async testBridgeWithoutActionsIsPrinted() {
     const network = CheckPartnerTest.network();
     network.tools[0].instructions = `${"Tours. ".repeat(60)}\nAnswer questions.`;
     const routes = await CheckPartnerTest.partnerRoutes("skill", CheckPartnerTest.manifest("skill"), network);
@@ -511,9 +512,8 @@ class CheckPartnerTest {
     try {
       const result = served.result;
       assert.equal(result.code, 0, result.out);
-      assert.deepEqual(result.findings, [
-        "WARNING: The partner's front agent has no peer rule. With no website_* tools, the runtime's note tells it to report a missing integration, so it may answer only that.",
-      ]);
+      assert.deepEqual(result.findings, []);
+      assert.ok(result.lines.includes("Its bridge shares no actions, so it gets none of the partner's website_* tools and answers only from its instructions."), result.out);
       const opening = `Its front agent's instructions start: "${"Tours. ".repeat(60).trim().slice(0, 300)}…"`;
       assert.ok(result.lines.includes(opening), result.out);
     } finally {
@@ -659,6 +659,8 @@ class CheckPartnerTest {
       for (const request of served.server.requests) {
         paths.push(request.path);
       }
+      // nsdeploy's bridge reads the site's own manifest, which names the action module, so
+      // the check also loads that module.
       assert.deepEqual(paths, [
         "/agent-manifest.json",
         "/harbor_tours.network.json",
@@ -666,7 +668,10 @@ class CheckPartnerTest {
         "/action-bridge.html",
         "/runtime/action-bridge.js",
         "/agent-manifest.json",
+        "/site-actions.js",
       ]);
+      const reach = `Its bridge loads ${served.origin}/site-actions.js. The partner's agents get the reads in it that list this site's origin or "*" in callerOrigins and are in the partner's actions.agentTools. Each runs in a hidden frame on the partner's origin.`;
+      assert.ok(served.result.lines.includes(reach), served.result.out);
     } finally {
       await served.server.stop();
     }
@@ -835,7 +840,7 @@ test("a cross-origin redirect fails and a same-origin one warns", CheckPartnerTe
 test("an MCP server on the partner's own origin is marked no consent card", CheckPartnerTest.testOwnOriginMcpIsMarked);
 test("a call back to the caller's origin is marked as skipped", CheckPartnerTest.testCallBackToCallerIsMarked);
 test("--origin equal to the partner's own origin warns", CheckPartnerTest.testOwnOriginWarns);
-test("a partner with no peer rule warns, and the start of its instructions is printed", CheckPartnerTest.testNoPeerRuleWarns);
+test("a partner whose bridge shares nothing is reported, and the start of its instructions is printed", CheckPartnerTest.testBridgeWithoutActionsIsPrinted);
 test("a check with no --origin prints the lines for a calling site", CheckPartnerTest.testSelfCheckNamesCallers);
 test("link slots warn", CheckPartnerTest.testLinkSlotsWarn);
 test("a links.json that callers cannot read only warns", CheckPartnerTest.testUnreadableLinksWarn);

@@ -104,16 +104,28 @@ export class BookingPage {
    * :return: the state as plain JSON
    */
   readState() {
-    return {
-      today: BookingFacts.day(Calendar.today()),
-      rooms: BookingFacts.rooms(),
-      extras: BookingFacts.extras(),
-      terms: BookingFacts.terms(),
+    return Object.assign(BookingPage.siteState(), {
       pageFacts: this.pageFacts(),
       bookingForm: this.draftState(),
       lastSearch: this.searchState(),
       latestBooking: this.latestBooking(),
       managedBooking: this.managedBooking(),
+    });
+  }
+
+  /**
+   * Read the state that needs no page: today, the rooms, the extras and the
+   * terms. The action bridge shares it with other sites
+   * (bridge/bridge-actions.js).
+   *
+   * :return: that state as plain JSON
+   */
+  static siteState() {
+    return {
+      today: BookingFacts.day(Calendar.today()),
+      rooms: BookingFacts.rooms(),
+      extras: BookingFacts.extras(),
+      terms: BookingFacts.terms(),
     };
   }
 
@@ -124,9 +136,20 @@ export class BookingPage {
    * :return: the facts by topic, each with its text and links
    */
   pageFacts() {
+    return BookingPage.factsIn(this.doc);
+  }
+
+  /**
+   * Read the page's facts from a document of the page: the page itself, or
+   * the copy the action bridge fetches (bridge/bridge-actions.js).
+   *
+   * :param doc: the page's document
+   * :return: the facts by topic, each with its text and links
+   */
+  static factsIn(doc) {
     const facts = {};
     for (const [topic, id] of Object.entries(BookingPage.FACTS)) {
-      facts[topic] = this.fact(this.byId(id));
+      facts[topic] = BookingPage.fact(doc.getElementById(id));
     }
     return facts;
   }
@@ -137,7 +160,7 @@ export class BookingPage {
    * :param element: the element
    * :return: the text and the links
    */
-  fact(element) {
+  static fact(element) {
     const links = [];
     // textContent leaves out a link's address, so read each href too.
     for (const link of element.querySelectorAll("a")) {

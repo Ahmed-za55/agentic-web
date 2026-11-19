@@ -11,9 +11,11 @@ import http from "node:http";
  *
  * A request comes from the partner when its last user message is the scripted request,
  * because that is all a partner network receives. The partner answers "PARTNER_ANSWER:" with
- * what its prompt holds. When nest() sets a second request, a partner that is offered a
- * partner tool first calls it once with that request, and the second partner answers
- * "NESTED_ANSWER:". Any other request comes from the visitor's site. It calls the partner
+ * the website_* tools it was offered and whether its prompt holds the runtime's no-actions
+ * note. When read() names one of those tools, the partner first calls it once with the
+ * given arguments, then answers with its result. When nest() sets a second request, a
+ * partner that is offered a partner tool first calls it once with that request, and the
+ * second partner answers "NESTED_ANSWER:". Any other request comes from the visitor's site. It calls the partner
  * tool, whose description starts with "Hand off to the" (runtime/runner.js,
  * buildToolTable), until it has the scripted number of tool results. Then it answers
  * "CALLER_FINAL:" with the text of the last result. A site with several partners gets
@@ -29,9 +31,9 @@ export class MockRouter {
   static HANDOFF = "Hand off to the ";
 
   /**
-   * A phrase of the template's peer_rules.
+   * The start of a website action tool's name (runtime/runner.js, buildToolTable).
    */
-  static PEER_RULE = "When you have no website_* tools, another site's assistant is asking";
+  static WEBSITE_TOOL = "website_";
 
   /**
    * The note the runtime adds for a network with no actions (runtime/actions.js, actionContext).
@@ -69,6 +71,21 @@ export class MockRouter {
     // The partner tool each side calls, or null for the first one offered.
     this.callerTool = null;
     this.onwardTool = null;
+    // The website tool the partner reads first, with its arguments, or null for none.
+    this.partnerRead = null;
+  }
+
+  /**
+   * Make the partner call one of its website tools once before it answers.
+   *
+   * :param tool: The tool name, such as "website_find_departures", or null for none.
+   * :param args: The arguments to call it with.
+   */
+  read(tool, args) {
+    this.partnerRead = tool === null ? null : {
+      tool: tool,
+      args: args,
+    };
   }
 
   /**
@@ -183,12 +200,19 @@ export class MockRouter {
     record.firstLine = system.split("\n")[0].slice(0, 160);
     record.roles = roles;
     record.tools = toolNames;
-    record.peerRule = system.includes(MockRouter.PEER_RULE);
+    record.websiteTools = [];
+    for (const name of toolNames) {
+      if (name.startsWith(MockRouter.WEBSITE_TOOL)) {
+        record.websiteTools.push(name);
+      }
+    }
     record.noActionsNote = system.includes(MockRouter.NO_ACTIONS_NOTE);
     record.toolResults = [];
     for (const result of results) {
       record.toolResults.push(result.slice(0, 400));
     }
+    // In full, so a check can read what a partner's website tool returned.
+    record.lastToolResult = results.length ? results[results.length - 1] : null;
     record.reply = this.decide(record.role, tools, results, record);
     return MockRouter.answer(200, "text/event-stream", this.stream(parsed.model, record.reply));
   }
@@ -203,9 +227,18 @@ export class MockRouter {
    * :return: {tool, request} for a tool call, or {text} for an answer.
    */
   decide(role, tools, results, record) {
-    const flags = `peer rule ${record.peerRule ? "yes" : "no"}; no-actions note ${record.noActionsNote ? "yes" : "no"}.`;
+    const flags = MockRouter.flags(record);
     if (role === "nested") {
       return {text: `NESTED_ANSWER: ${flags}`};
+    }
+    if (role === "partner" && this.partnerRead !== null && record.websiteTools.includes(this.partnerRead.tool)) {
+      if (results.length === 0) {
+        return {
+          tool: this.partnerRead.tool,
+          args: this.partnerRead.args,
+        };
+      }
+      return {text: `PARTNER_ANSWER: ${this.partnerRead.tool} said ${MockRouter.resultSummary(results[results.length - 1])}`};
     }
     if (role === "partner") {
       const onward = this.nestedRequest === null ? null : MockRouter.handoffTool(tools, this.onwardTool);
@@ -235,6 +268,46 @@ export class MockRouter {
     return {
       text: "CALLER_FINAL: no partner tool was offered.",
     };
+  }
+
+  /**
+   * Say what a partner's prompt held: the website tools it was offered, and whether the
+   * runtime added its no-actions note.
+   *
+   * :param record: The request's record.
+   * :return: The flags, such as "website tools none; no-actions note no.".
+   */
+  static flags(record) {
+    const tools = record.websiteTools.length ? record.websiteTools.join(", ") : "none";
+    return `website tools ${tools}; no-actions note ${record.noActionsNote ? "yes" : "no"}.`;
+  }
+
+  /**
+   * Sum up a website tool's result: the receipt's status, the result's keys and, when the
+   * site refused, its reason.
+   *
+   * :param content: The tool result, a receipt as JSON, or plain text.
+   * :return: The summary, such as "status succeeded; result keys ok,departures".
+   */
+  static resultSummary(content) {
+    let receipt = null;
+    try {
+      receipt = JSON.parse(content);
+    } catch (error) {
+      return String(content).slice(0, 200);
+    }
+    if (receipt === null || typeof receipt !== "object" || typeof receipt.status !== "string") {
+      return String(content).slice(0, 200);
+    }
+    const result = receipt.result !== null && typeof receipt.result === "object" ? receipt.result : {};
+    const parts = [
+      `status ${receipt.status}`,
+      `result keys ${Object.keys(result).join(",")}`,
+    ];
+    if (result.ok === false) {
+      parts.push(`reason ${result.reason}`);
+    }
+    return parts.join("; ");
   }
 
   /**
@@ -276,13 +349,14 @@ export class MockRouter {
    * Write a reply as a chat-completions event stream, the form runtime/llm.js reads.
    *
    * :param model: The model the request named, echoed back.
-   * :param reply: {tool, request} or {text}.
+   * :param reply: {tool, request} for a partner tool, {tool, args} for a website tool, or {text}.
    * :return: The stream's text.
    */
   stream(model, reply) {
     let delta = null;
     if (reply.tool) {
       this.toolCalls += 1;
+      const args = reply.args === undefined ? {request: reply.request} : reply.args;
       delta = {
         role: "assistant",
         tool_calls: [
@@ -292,7 +366,7 @@ export class MockRouter {
             type: "function",
             function: {
               name: reply.tool,
-              arguments: JSON.stringify({request: reply.request}),
+              arguments: JSON.stringify(args),
             },
           },
         ],

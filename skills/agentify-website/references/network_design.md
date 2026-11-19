@@ -86,9 +86,9 @@ string must not contain another `{placeholder}`.
 
 Keep each agent's expanded instructions under about 5,000 characters (`build_network.mjs`
 warns above that). In the front agent, the template's `{grounding_rules}` without its
-TODO line, `{cruse_rules}`, `{peer_rules}` and `{partner_rules}` already use about 3,500
-of them, or about 2,850 without `{partner_rules}`. Everything else shares the rest,
-about 1,450 or 2,150: the first sentence, the list of what the site cannot do, and the
+TODO line, `{cruse_rules}` and `{partner_rules}` already use about 3,400 of them, or
+about 2,650 without `{partner_rules}`. Everything else shares the rest, about 1,600 or
+2,350: the first sentence, the list of what the site cannot do, and the
 "How to work" lines for specialists and partners. The runtime appends about 2,000 more:
 CRUSE guidance (`runtime/cruse.js`, `agentPresentationContext`) and a note on `website_*` tools
 (`runtime/runner.js`, `runAgent`). Do not repeat that guidance; the template's
@@ -113,7 +113,6 @@ A good front agent's instructions have these parts, in this order:
    it). The front agent's lines name no `website_*` tools.
 4. `{partner_rules}`, only when the agent calls partner sites.
 5. `{cruse_rules}`. Only the front agent needs these: only its presentation is shown.
-6. `{peer_rules}`.
 
 Some rules on the site decide what to pass to an operation, such as who counts as a guest
 or what goes in a notes field. Say in the operation's description to read them first, not

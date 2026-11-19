@@ -10,7 +10,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { Engine } from "../../skills/agentify-website/runtime/engine.js";
 import { parseHocon } from "../../skills/agentify-website/runtime/hocon.js";
@@ -166,6 +166,11 @@ class LinkingTest {
       method: "testInvalidPartner",
       text: "a partner that fails validation never runs",
     },
+    {
+      id: "L11",
+      method: "testPartnerRead",
+      text: "the partner reads what its site shares, in a frame on its own origin",
+    },
   ];
 
   /**
@@ -314,12 +319,14 @@ class LinkingTest {
     web.replace(`${callerOrigin}/agent-manifest.json`, served);
     const front = caller.network.getAgentSpec(caller.network.findFrontMan());
     const partnerFront = partner.network.getAgentSpec(partner.network.findFrontMan());
+    const agentTools = (partner.manifest.actions || {}).agentTools || [];
     return {
       spec: spec,
       web: web,
       router: router,
       caller: caller,
       partner: partner,
+      shared: await LinkingTest.sharedWith(sites[spec.partner], callerOrigin, agentTools),
       callerOrigin: callerOrigin,
       callerManifest: served,
       partnerOrigin: LinkingTest.ORIGINS[spec.partner],
@@ -329,6 +336,91 @@ class LinkingTest {
       callerModel: String((front.llm_config || {}).model_name || ""),
       partnerModel: String((partnerFront.llm_config || {}).model_name || ""),
     };
+  }
+
+  /**
+   * Read what a partner site declares it shares with one caller: the actions its bridge
+   * module lists for the caller's origin, and the reads among them that its agents may
+   * call, as the website_* tools the partner's agents should get.
+   *
+   * :param folder: The partner's site folder.
+   * :param callerOrigin: The calling site's origin.
+   * :param agentTools: The partner manifest's actions.agentTools.
+   * :return: {actions, tools}: the shared action names, and the expected tool names.
+   */
+  static async sharedWith(folder, callerOrigin, agentTools) {
+    const shared = {
+      actions: [],
+      tools: [],
+    };
+    const bridge = JSON.parse(await readFile(path.join(folder, "bridge", "agent-manifest.json"), "utf8"));
+    const module = (bridge.actions || {}).module;
+    if (!module) {
+      return shared;
+    }
+    const loaded = await import(pathToFileURL(path.join(folder, "bridge", module)).href);
+    const definitions = [];
+    loaded.registerActions({register: definitions.push.bind(definitions)});
+    for (const definition of definitions) {
+      const origins = definition.callerOrigins || [];
+      if ((definition.availability || "local-only") === "local-only" || !(origins.includes(callerOrigin) || origins.includes("*"))) {
+        continue;
+      }
+      shared.actions.push(definition.name);
+      if (definition.availability === "bridge" && definition.effect === "read" && agentTools.includes(definition.name)) {
+        shared.tools.push(`website_${definition.name}`);
+      }
+    }
+    return shared;
+  }
+
+  /**
+   * The read a partner's agent makes in L11, with arguments that need no page, or null
+   * when the site has none. The pizza site's one read also reads its page's HTML, which
+   * needs a browser, so the Chrome check runs that one.
+   *
+   * :param role: The partner's role.
+   * :return: {tool, key, args}, with a key the read's result must have, or null.
+   */
+  static readFor(role) {
+    if (role === "tours") {
+      return {
+        tool: "website_find_departures",
+        key: "departures",
+        args: {
+          date: LinkingTest.daysAhead(10),
+          adults: 2,
+          children: 0,
+          under4s: 0,
+        },
+      };
+    }
+    if (role === "guesthouse") {
+      return {
+        tool: "website_search_rooms",
+        key: "freeRooms",
+        args: {
+          checkIn: LinkingTest.daysAhead(14),
+          checkOut: LinkingTest.daysAhead(16),
+          guests: 2,
+        },
+      };
+    }
+    return null;
+  }
+
+  /**
+   * Give the local date some days from today, as the sites read dates.
+   *
+   * :param days: How many days ahead.
+   * :return: The date as YYYY-MM-DD.
+   */
+  static daysAhead(days) {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
   }
 
   /**
@@ -416,6 +508,7 @@ class LinkingTest {
       trace: [],
       result: null,
     };
+    setup.web.setPage(setup.callerOrigin);
     setup.web.install();
     try {
       const engine = new Engine({
@@ -531,6 +624,8 @@ class LinkingTest {
     assert.equal(web.frames[0].src, `${setup.partnerOrigin}/bridge/action-bridge.html`);
     assert.equal(web.frames[0].sandbox, "allow-scripts allow-same-origin");
     assert.equal(web.frames[0].ready, true, `The bridge never said it was ready: ${web.frames[0].error}`);
+    assert.deepEqual(web.frames[0].shared, setup.shared.actions, "The bridge shared other actions than its module lists for this caller.");
+    assert.deepEqual(web.frames[0].executed, [], "The bridge ran an action, but the partner called none.");
     assert.deepEqual(web.dialogs, []);
     // The key goes only to the router, and nothing goes to a host the test does not serve.
     for (const record of web.requests) {
@@ -547,12 +642,18 @@ class LinkingTest {
       assert.equal(chat.keyOk, true, "A partner model call did not carry the visitor's key.");
     }
     assert.deepEqual(partnerChats[0].roles, ["system", "user"]);
-    assert.equal(partnerChats[0].peerRule, true, "The partner's instructions lack the peer rule.");
-    assert.equal(partnerChats[0].noActionsNote, true, "The partner's prompt lacks the runtime's no-actions note.");
+    // The partner gets the reads its bridge shares with this caller, and no note telling
+    // it to report a missing integration.
+    assert.deepEqual(partnerChats[0].websiteTools, setup.shared.tools, "The partner was offered other website tools than its site shares with this caller.");
+    assert.equal(partnerChats[0].noActionsNote, false, "The partner's prompt has the runtime's no-actions note.");
     const calls = LinkingTest.events(run.trace, "remote_call", "start");
     assert.equal(calls.length, 1);
     assert.deepEqual(Object.keys(calls[0].requestPayload.sly_data || {}), []);
-    assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: peer rule yes; no-actions note yes\.$/);
+    const flags = MockRouter.flags({
+      websiteTools: setup.shared.tools,
+      noActionsNote: false,
+    });
+    assert.equal(run.result.text, `CALLER_FINAL: PARTNER_ANSWER: ${flags}`);
   }
 
   /**
@@ -761,6 +862,57 @@ class LinkingTest {
   }
 
   /**
+   * L11: a partner's agent calls a read its site's bridge shares with the calling site. The
+   * runtime opens a second frame on the partner's origin, the partner's own code runs
+   * there, and its result reaches the partner's agent and then the calling site.
+   *
+   * :param direction: The direction's name.
+   * :param t: The test context.
+   */
+  static async testPartnerRead(direction, t) {
+    const reason = await LinkingTest.skipReason(direction);
+    if (reason !== null) {
+      t.skip(reason);
+      return;
+    }
+    const setup = await LinkingTest.setUp(direction, 1);
+    const read = LinkingTest.readFor(setup.spec.partner);
+    if (read === null) {
+      t.skip("The partner's only read also reads its page's HTML, which needs a browser. The Chrome check runs it.");
+      return;
+    }
+    if (!setup.shared.tools.includes(read.tool)) {
+      t.skip(`The partner's site does not share ${read.tool} with ${setup.callerOrigin}, so its agents never get it (L1 and L4 check that).`);
+      return;
+    }
+    setup.router.read(read.tool, read.args);
+    const run = await LinkingTest.run(setup, "", "allow");
+    const web = setup.web;
+    assert.equal(run.cards.length, 1, "Expected exactly one consent card.");
+    // One frame for the catalog, then a new one for the read, both on the partner's origin.
+    assert.equal(web.frames.length, 2, "Expected a bridge frame for the catalog and one for the read.");
+    for (const frame of web.frames) {
+      assert.equal(frame.src, `${setup.partnerOrigin}/bridge/action-bridge.html`);
+      assert.equal(frame.ready, true, `A bridge frame never said it was ready: ${frame.error}`);
+    }
+    assert.deepEqual(web.frames[1].executed, [read.tool.slice(MockRouter.WEBSITE_TOOL.length)]);
+    assert.deepEqual(web.dialogs, [], "A read asked the visitor something.");
+    const partnerChats = setup.router.partnerChats();
+    assert.equal(partnerChats.length, 2, "Expected the partner's call and its answer after the read.");
+    const result = partnerChats[1].toolResults[0];
+    assert.match(result, /"status":"succeeded"/, result);
+    assert.match(result, /"ok":true/, result);
+    const keys = Object.keys(JSON.parse(partnerChats[1].lastToolResult).result).join(",");
+    assert.ok(keys.includes(read.key), `The read's result has no ${read.key}: ${keys}`);
+    assert.equal(run.result.text, `CALLER_FINAL: PARTNER_ANSWER: ${read.tool} said status succeeded; result keys ${keys}`);
+    for (const record of web.requests) {
+      if (record.origin !== new URL(LinkingTest.ROUTER).origin) {
+        assert.equal(record.keySent, false, `${record.url} got the key.`);
+      }
+    }
+  }
+
+  /**
    * List the files under a folder, as paths relative to it.
    *
    * :param folder: The folder.
@@ -814,8 +966,8 @@ class LinkingTest {
   }
 
   /**
-   * Check that a site keeps the template's peer and partner rules, with its own read
-   * action filled in, and that the build finds nothing to report.
+   * Check that a site keeps the template's partner rules, with its own read action filled
+   * in, has no old peer rules, and that the build finds nothing to report.
    *
    * :param folder: The site folder.
    * :param runtime: The runtime folder to build with, or null for the site's own.
@@ -826,7 +978,8 @@ class LinkingTest {
     const rules = template.commondefs.replacement_strings;
     const source = parseHocon(await readFile(path.join(folder, `${site.name}.hocon`), "utf8"));
     const strings = (source.commondefs || {}).replacement_strings || {};
-    assert.equal(strings.peer_rules, rules.peer_rules, "peer_rules differs from the template's.");
+    assert.equal(rules.peer_rules, undefined, "The template still has peer_rules.");
+    assert.equal(strings.peer_rules, undefined, "The site keeps peer_rules, which the template no longer has.");
     let callsPartner = false;
     for (const agent of site.network.config.tools || []) {
       for (const ref of agent.tools || []) {
@@ -916,7 +1069,9 @@ class LinkingTest {
       assert.equal(run.cards[1].requestText, LinkingTest.SECOND_HOP.onward);
       assert.deepEqual(LinkingTest.paths(web.requests.slice(0, run.cards[1].before), guesthouse), [], "The guesthouse was contacted before its card was answered.");
       assert.ok(setup.router.nestedChats().length >= 1, "The guesthouse made no model call.");
-      assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: NESTED_ANSWER: peer rule yes; no-actions note yes\.$/);
+      // A bridge checks callerOrigins against the visitor's page, here the test caller,
+      // so on the second hop the guesthouse shares nothing, though it shares with the tour site.
+      assert.match(run.result.text, /^CALLER_FINAL: PARTNER_ANSWER: NESTED_ANSWER: website tools none; no-actions note no\.$/);
     } else {
       assert.deepEqual(LinkingTest.paths(web.requests, guesthouse), [], "The guesthouse was contacted although the tour site's allowed_peers is empty.");
       assert.match(tourChats.at(-1).toolResults[0], /^Error from tool '[A-Za-z0-9_]+': Policy: 127\.0\.0\.1:8080 is not in /);

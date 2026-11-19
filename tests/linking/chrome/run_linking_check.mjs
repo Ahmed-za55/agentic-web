@@ -16,7 +16,7 @@ import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/pr
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { AgentNetwork, parseExternalAgent } from "../../../skills/agentify-website/runtime/kernel.js";
 import { safeName } from "../../../skills/agentify-website/runtime/runner.js";
 import { CdpClient } from "./cdp_client.mjs";
@@ -29,7 +29,8 @@ import { PageScripts } from "./page_scripts.mjs";
  * Starts the sites, the router and Chrome, runs the cases, writes the report, and stops
  * everything, also on failure or Ctrl+C.
  *
- * Each direction runs C1 (C4 when an example site calls), C2 and C3, and C7 with
+ * Each direction runs C1 (C4 when an example site calls), C2 and C3, C9 when the partner's
+ * bridge shares a state read with the caller, and C7 with
  * --same-host. Each served site then gets C5 and C6, and C8 runs last with --no-bridge,
  * for the first direction. A direction skips, with the reason, only while the real tour
  * site does not exist. A direction whose sites are not linked fails. The exit code is 0
@@ -164,6 +165,21 @@ class LinkingCheck {
       request: "Is there a boat trip for two adults on 13 June, and what does it cost?",
     },
   };
+
+  /**
+   * The state read each partner's agent makes in C9. It fetches the partner's page and
+   * parses it with DOMParser, which only a browser has.
+   */
+  static STATE_READS = {
+    guesthouse: "website_get_guesthouse_state",
+    tours: "website_get_tours_state",
+    pizza: "website_get_restaurant_state",
+  };
+
+  /**
+   * The page files a bridge must never load: they start the page, or are the page.
+   */
+  static PAGE_STARTERS = ["/site-actions.js", "/site.js", "/js/app.js", "/index.html"];
 
   /**
    * The usage text, printed for --help and after a bad argument.
@@ -830,6 +846,9 @@ class LinkingCheck {
       await this.caseAllowed(context, direction.spec.caller === "caller" ? "C1" : "C4", LinkingCheck.VISITOR_MODEL);
       await this.caseAllowed(context, "C2", "");
       await this.caseDecline(context);
+      if (context.shared.tools.includes(LinkingCheck.STATE_READS[context.partnerRole])) {
+        await this.casePartnerRead(context);
+      }
       if (this.options.sameHost) {
         await this.caseSameHost(context);
       }
@@ -856,9 +875,11 @@ class LinkingCheck {
     const callerSite = LinkingCheck.SITES[spec.caller];
     const partnerSite = LinkingCheck.SITES[spec.partner];
     const callerOrigin = `http://${callerSite.host}:${callerSite.port}`;
+    const agentTools = (partner.manifest.actions || {}).agentTools || [];
     return {
       name: direction.name,
       title: `${callerSite.title} -> ${partnerSite.title}`,
+      shared: await LinkingCheck.sharedWith(this.served[spec.partner], callerOrigin, agentTools),
       spec: spec,
       callerRole: spec.caller,
       partnerRole: spec.partner,
@@ -876,6 +897,45 @@ class LinkingCheck {
       partnerFile: partner.file,
       partnerAgentTools: ((partner.manifest.actions || {}).agentTools || []).length,
     };
+  }
+
+  /**
+   * Read what a partner site declares it shares with one caller: the actions its bridge
+   * module lists for the caller's origin, and the reads among them that its agents may
+   * call, as the website_* tools the partner's agents should get.
+   *
+   * :param folder: The partner's served folder.
+   * :param callerOrigin: The calling site's origin.
+   * :param agentTools: The partner manifest's actions.agentTools.
+   * :return: {module, actions, tools}: whether the bridge loads a module, the shared
+   *   action names, and the expected tool names.
+   */
+  static async sharedWith(folder, callerOrigin, agentTools) {
+    const bridge = JSON.parse(await readFile(path.join(folder, "bridge", "agent-manifest.json"), "utf8"));
+    const module = (bridge.actions || {}).module;
+    const shared = {
+      // The bridge loads its module, and the site modules it imports, for every caller.
+      module: !!module,
+      actions: [],
+      tools: [],
+    };
+    if (!module) {
+      return shared;
+    }
+    const loaded = await import(pathToFileURL(path.join(folder, "bridge", module)).href);
+    const definitions = [];
+    loaded.registerActions({register: definitions.push.bind(definitions)});
+    for (const definition of definitions) {
+      const origins = definition.callerOrigins || [];
+      if ((definition.availability || "local-only") === "local-only" || !(origins.includes(callerOrigin) || origins.includes("*"))) {
+        continue;
+      }
+      shared.actions.push(definition.name);
+      if (definition.availability === "bridge" && definition.effect === "read" && agentTools.includes(definition.name)) {
+        shared.tools.push(`website_${definition.name}`);
+      }
+    }
+    return shared;
   }
 
   /**
@@ -1124,9 +1184,10 @@ class LinkingCheck {
     if (swapped !== null) {
       notes.push(`both sites name ${context.callerModel}, so the partner was served naming ${swapped}, to show which site chose the partner's model`);
     }
-    // A note, not a check: the runtime shows the partner bridge's "No actions exposed"
-    // here (runtime/index.js), which is on the upstream list.
+    // A note, not a check: for a partner whose bridge shares nothing with this caller, the
+    // runtime shows "No actions exposed" here (runtime/index.js), which is on the upstream list.
     notes.push(`the calling page's action note after the call: "${evidence.actionStatusDetail}"`);
+    notes.push(`the partner's bridge shares with this caller: ${context.shared.actions.join(", ") || "nothing"}`);
     await this.record(id, context.name, LinkingCheck.status(checks), checks, notes, evidence);
   }
 
@@ -1169,11 +1230,14 @@ class LinkingCheck {
     const other = [];
     for (const line of evidence.partnerLog) {
       served.push(line.path);
-      if (!publicFiles.includes(line.path) && !line.path.startsWith("/bridge/") && !line.path.startsWith("/runtime/")) {
+      // A bridge that shares actions also loads the site modules its bridge-actions.js
+      // imports, but never the page or the files that start it.
+      const siteModule = context.shared.module && line.path.endsWith(".js") && !LinkingCheck.PAGE_STARTERS.includes(line.path);
+      if (!publicFiles.includes(line.path) && !line.path.startsWith("/bridge/") && !line.path.startsWith("/runtime/") && !siteModule) {
         other.push(line.path);
       }
     }
-    expect(checks, other.length === 0, `the partner served only its public files, bridge/ and runtime/ (also: ${other.join(", ")})`);
+    expect(checks, other.length === 0, `the partner served only its public files, bridge/, runtime/ and the site modules its bridge imports (also: ${other.join(", ")})`);
     for (const file of publicFiles.concat(["/bridge/action-bridge.html", "/bridge/agent-manifest.json"])) {
       expect(checks, served.includes(file), `the partner served ${file}`);
     }
@@ -1227,9 +1291,14 @@ class LinkingCheck {
     const partnerChats = LinkingCheck.chats(evidence, "partner");
     expect(checks, partnerChats.length >= 1, "the partner made a model call");
     const partnerTools = LinkingCheck.websiteTools(partnerChats);
-    expect(checks, partnerTools.length === 0, `the partner was offered no website_* tool (${partnerTools.join(", ")})`);
+    const expected = context.shared.tools.join(", ") || "none";
+    expect(checks, partnerTools.join(", ") === context.shared.tools.join(", "), `the partner was offered exactly the reads its site shares with this caller: ${expected} (got ${partnerTools.join(", ") || "none"})`);
+    const flags = MockRouter.flags({
+      websiteTools: context.shared.tools,
+      noActionsNote: false,
+    });
     const answer = evidence.finalAnswer || "";
-    expect(checks, answer.startsWith("CALLER_FINAL: PARTNER_ANSWER: peer rule yes; no-actions note yes."), `the partner's answer, with the peer rule and the no-actions note, reached the caller ("${answer.slice(0, 160)}")`);
+    expect(checks, answer === `CALLER_FINAL: PARTNER_ANSWER: ${flags}`, `the partner's answer, with its website tools and no no-actions note, reached the caller ("${answer.slice(0, 200)}")`);
     return checks;
   }
 
@@ -1252,6 +1321,88 @@ class LinkingCheck {
     const answer = evidence.finalAnswer || "";
     expect(checks, answer.startsWith(`CALLER_FINAL: The user declined to contact ${context.partnerHost}.`), `the caller said the visitor declined ("${answer.slice(0, 160)}")`);
     await this.record("C3", context.name, LinkingCheck.status(checks), checks, [], evidence);
+  }
+
+  /**
+   * C9: the partner's agent calls the state read its site shares with the caller. The read
+   * runs the partner's own code in a frame on the partner's origin, which fetches the
+   * partner's page and parses it with the browser's DOMParser, and its result reaches the
+   * partner's agent and then the caller.
+   *
+   * :param context: The direction context.
+   */
+  async casePartnerRead(context) {
+    const tool = LinkingCheck.STATE_READS[context.partnerRole];
+    this.router.read(tool, {});
+    let evidence = null;
+    try {
+      evidence = await this.visitorTurn(context, LinkingCheck.VISITOR_MODEL, "allow", context.callerUrl);
+    } finally {
+      this.router.read(null, null);
+    }
+    const checks = [];
+    const expect = LinkingCheck.expect;
+    expect(checks, evidence.error === null, `the driver ran without error (${evidence.error})`);
+    expect(checks, evidence.outcome === "ended", `the turn ended (${evidence.outcome})`);
+    expect(checks, evidence.cards === 1, `exactly one consent card (${evidence.cards})`);
+    let bridgePages = 0;
+    const served = [];
+    for (const line of evidence.partnerLog) {
+      served.push(line.path);
+      if (line.path === "/bridge/action-bridge.html") {
+        bridgePages += 1;
+      }
+    }
+    expect(checks, bridgePages >= 2, `the partner served its bridge page for the catalog and again for the read (${bridgePages} times)`);
+    expect(checks, served.includes("/bridge/bridge-actions.js"), "the partner served /bridge/bridge-actions.js");
+    expect(checks, served.includes("/index.html"), "the bridge fetched the partner's page for its facts");
+    let popup = false;
+    for (const dialog of evidence.dialogs) {
+      if (dialog.text.includes("Continue at")) {
+        popup = true;
+      }
+    }
+    expect(checks, !popup, "no \"Continue at\" dialog: a read needs no window");
+    let receipt = null;
+    for (const chat of LinkingCheck.chats(evidence, "partner")) {
+      if (chat.lastToolResult) {
+        try {
+          receipt = JSON.parse(chat.lastToolResult);
+        } catch (error) {
+          receipt = null;
+        }
+      }
+    }
+    expect(checks, receipt !== null && receipt.status === "succeeded", `the read succeeded (${receipt === null ? "no result" : receipt.status})`);
+    const facts = receipt !== null && receipt.result ? receipt.result.pageFacts || {} : {};
+    let texts = 0;
+    const misplaced = [];
+    for (const fact of Object.values(facts)) {
+      if (fact && fact.text) {
+        texts += 1;
+      }
+      for (const link of (fact && fact.links) || []) {
+        // The base element makes a parsed page's links resolve against the page, not the frame.
+        if (String(link.href).includes("/bridge/")) {
+          misplaced.push(link.href);
+        }
+      }
+    }
+    expect(checks, texts > 0, `the result has the page's facts with their text (${texts} of ${Object.keys(facts).length})`);
+    expect(checks, misplaced.length === 0, `no fact link points into the bridge folder (${misplaced.join(", ")})`);
+    const answer = evidence.finalAnswer || "";
+    expect(checks, answer.startsWith(`CALLER_FINAL: PARTNER_ANSWER: ${tool} said status succeeded; result keys `) && answer.includes("pageFacts"), `the read's result reached the caller ("${answer.slice(0, 200)}")`);
+    const partnerKey = [];
+    for (const line of evidence.partnerLog) {
+      if (line.authorization || line.cookies.includes(LinkingCheck.COOKIE)) {
+        partnerKey.push(line.path);
+      }
+    }
+    expect(checks, partnerKey.length === 0, `no request to ${context.partnerHost} has Authorization or the ${LinkingCheck.COOKIE} cookie (${partnerKey.join(", ")})`);
+    const notes = [
+      `the partner's agent called ${tool}; the partner served ${served.length} requests`,
+    ];
+    await this.record("C9", context.name, LinkingCheck.status(checks), checks, notes, evidence);
   }
 
   /**
@@ -1376,13 +1527,22 @@ class LinkingCheck {
     }
     expect(checks, errors.length === 0, `the console has no errors (${errors.join("; ")})`);
     const siteCode = [];
+    const pageFiles = [];
     for (const line of evidence.serverLog) {
       if (!line.path.startsWith("/bridge/") && !line.path.startsWith("/runtime/") && line.path !== "/favicon.ico") {
         siteCode.push(line.path);
+        // The site modules bridge-actions.js imports are fine. The page, and the files
+        // that start it, are not: the bridge frame has none of the page's elements.
+        if (!line.path.endsWith(".js") || LinkingCheck.PAGE_STARTERS.includes(line.path)) {
+          pageFiles.push(line.path);
+        }
       }
     }
-    expect(checks, siteCode.length === 0, `the bridge loaded none of the site's own files (${siteCode.join(", ")})`);
-    await this.record("C6", role, LinkingCheck.status(checks), checks, [], evidence);
+    expect(checks, pageFiles.length === 0, `the bridge loaded none of the page or the files that start it (${pageFiles.join(", ")})`);
+    const notes = [
+      `site modules the bridge loaded: ${siteCode.join(", ") || "none"}`,
+    ];
+    await this.record("C6", role, LinkingCheck.status(checks), checks, notes, evidence);
   }
 
   /**

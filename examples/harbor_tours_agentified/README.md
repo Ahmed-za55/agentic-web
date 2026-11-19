@@ -121,13 +121,22 @@ its requests.
 
 Before anything is sent, a card in the chat asks you to allow the contact. It
 names the partner, shows its host and the first 140 characters of the
-request. A request is one or two short sentences, such as "What do you offer,
-and how do we book a stay?". The assistant is told never to put names,
-emails, phone numbers or booking codes in it, but the runtime does not filter
-the request, so check it on the card. The partner's network then runs in this
-browser, on your key and model, with none of the partner's own site tools, so it
-can say what it offers and how to book or order, but not what is free or what it
-costs today. Book rooms and order food with the partners directly.
+request. A request is one or two short sentences with exact dates and numbers
+of people, such as "Is a room free for two adults from 12 to 14 June, and what
+would it cost?". The assistant is told never to put names, emails, phone
+numbers or booking codes in it, but the runtime does not filter the request, so
+check it on the card. The partner's network then runs in this browser, on your
+key and model, with only the reads the partner's site shares with this one:
+the guesthouse's rooms, free rooms and prices, and the pizza site's menu and
+opening hours. Each runs the partner's own code in a hidden frame on the
+partner's address. Book rooms and order food with the partners directly.
+
+Other agent sites can call this network at
+`http://localhost:8081/marrow_point_harbor_tours`. It then runs in their
+visitor's browser with the reads this site shares with the guesthouse and the
+pizza site in `bridge/bridge-actions.js`: the tours and the page's facts, the
+Good to know page, and the departures on a date. The basket and reservations
+stay on this page.
 
 These addresses work only on this machine. Before hosting, put each partner's
 https network URL in the `.hocon` file's `tools` and `link_labels`, and its
@@ -200,8 +209,9 @@ guesthouse's origin in `connect-src` and `frame-src`.
   edit it by hand.
 - `agent-manifest.json`, `links.json`: the public files other agent sites read.
 - `agent-mcp.json`, `.well-known/`: discovery files, built from the manifest.
-- `bridge/`: the page other agent sites load in a hidden frame, built by the
-  build script. It shares no actions.
+- `bridge/`: the page other agent sites load in a hidden frame.
+  `bridge-actions.js` holds the reads it shares with them; the build script writes
+  the page and its manifest.
 - `runtime/`: the browser runtime, copied unchanged from the skill.
 - `tests/`: Node tests for the network, the actions and the dialogs.
 
