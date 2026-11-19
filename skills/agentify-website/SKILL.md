@@ -59,9 +59,9 @@ Follow `references/network_design.md`. The defaults are:
 - no `demo_mode`; facts only from tool results; a list of what the site cannot do;
 - shared rules in `commondefs.replacement_strings`, with CRUSE rules on the front agent only;
 - sample queries the site can really answer, plus one it must decline;
-- other agent websites can run every site's network, with only the reads its
-  `bridge/bridge-actions.js` shares with them, if any ("Share reads" in
-  `references/linking.md`);
+- other agent websites can run every site's network, with only the reads, and any
+  booking, its `bridge/bridge-actions.js` shares with them ("Share reads" and "Share a
+  booking" in `references/linking.md`);
 - a partner site with an agent network is a tool named by its full network URL, never a
   link slot.
 
@@ -118,7 +118,9 @@ unused or unlisted `website_*` tools, manifest mismatches, a missing or misplace
 bridge, partner URLs the runtime would refuse, and partners with no consent-card label.
 It also writes the discovery files, which copy parts of the manifest: `agent-mcp.json`,
 `.well-known/<protocol_name>.json` and `.well-known/<protocol_name>-agent.json`. It prints
-the tools the runtime adds to every agent, which the `tools` lists do not show. Fix every
+the tools the runtime adds, which the `tools` lists do not show: the `website_*` tools, and
+where an agent gets them (the page's own actions, or the bridge's when another site calls
+it), and `render_cruse` when CRUSE is on. Fix every
 error. Fix the warnings too, or tell the user why one stays. Never edit generated files by
 hand: change the `.hocon` or the manifest and rebuild.
 
@@ -245,7 +247,7 @@ Tell the user:
 | `references/site_actions.md` | Action registry, effects, receipts, what to test |
 | `references/bundle_and_hosting.md` | Output layout, manifest, mounting, providers, hosting, discovery |
 | `references/live_url_mode.md` | Companion assistant for a public URL without source |
-| `references/linking.md` | Calls between agent sites: the bridge, shared reads, partner sites, checks |
+| `references/linking.md` | Calls between agent sites: the bridge, shared reads and bookings, partner sites, checks |
 | `runtime/` | Browser runtime; copy into each site unchanged (see `runtime/README.md`) |
 | `scripts/build_network.mjs` | HOCON → `.network.json`, with validation and checks |
 | `scripts/serve_site.mjs` | Local server that sends the CORS header on the public files |

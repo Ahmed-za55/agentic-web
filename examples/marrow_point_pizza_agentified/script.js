@@ -623,6 +623,26 @@ export class App {
   }
 
   /**
+   * Make the order from a check that passed, with a new order number. The page and the
+   * bridge's order window both use it.
+   *
+   * :param check: The result of checkOrder() when it passed.
+   * :return: The order: its number, name, pickup or delivery, address, time, items and total.
+   */
+  static orderFrom(check) {
+    return {
+      orderId: `DEMO-${App.now().getTime()}`,
+      name: check.name,
+      fulfillment: check.fulfillment,
+      address: check.address,
+      destination: check.destination,
+      when: check.when,
+      items: check.items,
+      total: check.total,
+    };
+  }
+
+  /**
    * Place the demo order for the whole cart, show its confirmation and empty the cart.
    * Nothing is paid, sent or cooked. It leaves the page's form and focus alone.
    *
@@ -634,16 +654,7 @@ export class App {
     if (!check.ok) {
       return check;
     }
-    const order = {
-      orderId: `DEMO-${App.now().getTime()}`,
-      name: check.name,
-      fulfillment: check.fulfillment,
-      address: check.address,
-      destination: check.destination,
-      when: check.when,
-      items: check.items,
-      total: check.total,
-    };
+    const order = App.orderFrom(check);
     document.querySelector("#order-summary").textContent =
       `${order.name}, your order ${order.orderId} is received. ${order.destination}, ${order.when}.`;
     const rows = [];

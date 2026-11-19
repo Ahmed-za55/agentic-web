@@ -1,7 +1,8 @@
-// Checks the reads this site shares with other agent sites through its action bridge
-// (bridge/bridge-actions.js). Each is a read for the callers it lists that the page's agents may
-// also call, takes the same input as the page's action of that name, and answers as the
-// page's own action does, without the basket and panels only the page has.
+// Checks the reads and the booking this site shares with other agent sites through its
+// action bridge (bridge/bridge-actions.js). Each read is for the callers it lists that the
+// page's agents may also call, takes the same input as the page's action of that name, and
+// answers as the page's own action does, without the basket and panels only the page has.
+// The booking is for the guesthouse, and keeps the visitor's details in this site's window.
 // These tests use the real page code with a stub document. They call no LLM provider.
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
@@ -10,6 +11,8 @@ import { SiteHarness } from "./site_harness.mjs";
 import { StubParser } from "./stub_parser.mjs";
 
 const { registerActions } = await import("../bridge/bridge-actions.js");
+const { BookingWindow } = await import("../bridge/booking-window.js");
+const { TripBook } = await import("../js/trip-book.js");
 // The page's HTML, which the bridge fetches for its facts.
 const PAGE_HTML = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
@@ -26,6 +29,11 @@ class BridgeActionsTest {
    * The state the page keeps and a partner has none of.
    */
   static PAGE_ONLY = ["basket", "search", "confirmation", "managePanel"];
+
+  /**
+   * The booking, which only the bridge shares and which runs in this site's own window.
+   */
+  static BOOKING = "book_departure";
 
   /**
    * List the bridge's actions by name.
@@ -97,16 +105,19 @@ class BridgeActionsTest {
   }
 
   /**
-   * Every shared action is a read for the callers it lists, each an exact origin other
-   * than this site's or "*", and the page registers an action of the same name that the
-   * manifest lets agents call.
+   * The bridge shares three reads and the booking. Each read is for the callers it lists,
+   * each an exact origin other than this site's or "*", and the page registers an action
+   * of the same name that the manifest lets agents call.
    */
   static async testSharedReadsAreForListedCallers() {
     const manifest = JSON.parse(await readFile(new URL("../agent-manifest.json", import.meta.url), "utf8"));
     const page = await BridgeActionsTest.page();
     const shared = await BridgeActionsTest.shared();
-    assert.deepEqual([...shared.keys()], ["get_tours_state", "get_good_to_know", "find_departures"]);
+    assert.deepEqual([...shared.keys()], ["get_tours_state", "get_good_to_know", "find_departures", BridgeActionsTest.BOOKING]);
     for (const [name, definition] of shared) {
+      if (name === BridgeActionsTest.BOOKING) {
+        continue;
+      }
       assert.equal(definition.effect, "read", `${name} is not a read.`);
       assert.equal(definition.availability, "bridge", `${name} is not shared through the bridge.`);
       assert.ok(definition.callerOrigins.length > 0, `${name} lists no callers.`);
@@ -129,6 +140,9 @@ class BridgeActionsTest {
   static async testSharedReadsTakeThePageInput() {
     const page = await BridgeActionsTest.page();
     for (const [name, definition] of await BridgeActionsTest.shared()) {
+      if (name === BridgeActionsTest.BOOKING) {
+        continue;
+      }
       assert.deepEqual(definition.inputSchema, page.get(name).inputSchema, `${name} takes other input than the page's.`);
     }
   }
@@ -175,6 +189,71 @@ class BridgeActionsTest {
     assert.equal(result.ok, true, JSON.stringify(result));
     assert.deepEqual(result, await page.get("find_departures").execute(args));
   }
+
+  /**
+   * The booking is irreversible, for the guesthouse only, and confirmed in this site's
+   * window. Its input holds the trip and the tickets and no personal details, since the
+   * visitor types those in the window.
+   */
+  static async testBookingIsForTheGuesthouse() {
+    const manifest = JSON.parse(await readFile(new URL("../agent-manifest.json", import.meta.url), "utf8"));
+    const booking = (await BridgeActionsTest.shared()).get(BridgeActionsTest.BOOKING);
+    assert.equal(booking.effect, "irreversible");
+    assert.equal(booking.availability, "bridge");
+    assert.equal(booking.confirmsInWindow, true, "The window's own form confirms the booking.");
+    assert.deepEqual(booking.callerOrigins, ["http://127.0.0.1:8080"]);
+    assert.deepEqual(Object.keys(booking.inputSchema.properties), ["tourId", "date", "time", "adults", "children", "under4s"]);
+    assert.ok(booking.description.includes("never ask for them"), "The description says not to ask for the visitor's details.");
+    assert.ok(manifest.actions.agentTools.includes(BridgeActionsTest.BOOKING), "The booking is not in actions.agentTools, so partner agents never get it.");
+  }
+
+  /**
+   * A trip the site would refuse gets its reason at once, before any window opens.
+   */
+  static testBookingRefusesBeforeAWindow() {
+    // The sea wall walk does not run on Fridays.
+    const result = BookingWindow.book({
+      tourId: "sea-wall-walk",
+      date: "2026-11-13",
+      time: "10:30",
+      adults: 2,
+      children: 0,
+      under4s: 0,
+    }, {callerOrigin: "http://127.0.0.1:8080"});
+    assert.equal(result.ok, false);
+    assert.ok(result.reason, "The refusal gives the site's reason.");
+  }
+
+  /**
+   * What the booking returns to the calling assistant has the code and the trip, and
+   * leaves out the visitor's name, email and phone.
+   */
+  static testBookingKeepsDetailsInTheWindow() {
+    const trip = TripBook.copyTrip({
+      tourId: "seal-rocks",
+      date: "2026-11-13",
+      time: "10:00",
+      adults: 2,
+      children: 0,
+      under4s: 0,
+    });
+    const result = new TripBook().reserve([trip], {
+      firstName: "Ada",
+      lastName: "Lovelace",
+      email: "ada@example.com",
+      phone: "555 0100 200",
+      notes: "",
+    });
+    assert.ok(result.reservation, JSON.stringify(result.errors));
+    const described = BookingWindow.describe(result.reservation);
+    assert.deepEqual(Object.keys(described), ["ok", "code", "status", "trips", "total", "cancelBy", "note"]);
+    assert.equal(described.code, result.reservation.code);
+    assert.equal(described.total, "$79.00");
+    const text = JSON.stringify(described);
+    for (const detail of ["Ada", "Lovelace", "ada@example.com", "555 0100 200"]) {
+      assert.ok(!text.includes(detail), `${detail} went back to the chat.`);
+    }
+  }
 }
 
 test("each shared action is a read for the callers it lists that the page's agents may call", BridgeActionsTest.testSharedReadsAreForListedCallers);
@@ -182,3 +261,6 @@ test("each shared read takes the input of the page's action of that name", Bridg
 test("the shared state read matches the page's, without the page's own panels", BridgeActionsTest.testStateReadMatchesThePage);
 test("without a browser, the shared state read says it needs one", BridgeActionsTest.testStateReadNeedsABrowser);
 test("find_departures gives what the page gives", BridgeActionsTest.testDeparturesMatchThePage);
+test("the shared booking is for the guesthouse and confirmed in this site's window", BridgeActionsTest.testBookingIsForTheGuesthouse);
+test("the shared booking refuses a trip the site would refuse, before any window opens", BridgeActionsTest.testBookingRefusesBeforeAWindow);
+test("the shared booking keeps the visitor's name, email and phone in the window", BridgeActionsTest.testBookingKeepsDetailsInTheWindow);

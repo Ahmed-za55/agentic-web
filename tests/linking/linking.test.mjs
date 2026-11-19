@@ -340,8 +340,8 @@ class LinkingTest {
 
   /**
    * Read what a partner site declares it shares with one caller: the actions its bridge
-   * module lists for the caller's origin, and the reads among them that its agents may
-   * call, as the website_* tools the partner's agents should get.
+   * module lists for the caller's origin, and those among them that its agents may call,
+   * as the website_* tools the partner's agents should get.
    *
    * :param folder: The partner's site folder.
    * :param callerOrigin: The calling site's origin.
@@ -367,7 +367,7 @@ class LinkingTest {
         continue;
       }
       shared.actions.push(definition.name);
-      if (definition.availability === "bridge" && definition.effect === "read" && agentTools.includes(definition.name)) {
+      if (definition.availability === "bridge" && agentTools.includes(definition.name)) {
         shared.tools.push(`website_${definition.name}`);
       }
     }

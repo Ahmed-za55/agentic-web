@@ -85,7 +85,8 @@ export class PageScripts {
   }
 
   /**
-   * Read what the driver watches: turn state, an open consent card, open dialogs, iframes.
+   * Read what the driver watches: turn state, an open consent card, an open prompt for a
+   * partner's window, open dialogs and iframes.
    *
    * :return: A script whose value is a JSON string.
    */
@@ -94,12 +95,17 @@ export class PageScripts {
   const state = {
     turn: document.querySelector(".ns-inputbar")?.dataset.turnActive || null,
     consent: null,
+    actionWindow: null,
     dialogs: [],
     iframes: [],
   };
-  const actions = document.querySelector(".ns-consent .ns-consent-actions");
+  const actions = document.querySelector(".ns-consent:not(.ns-action-window) .ns-consent-actions");
   if (actions) {
     state.consent = actions.closest(".ns-consent").innerText;
+  }
+  const prompt = document.querySelector(".ns-action-window .ns-consent-actions");
+  if (prompt) {
+    state.actionWindow = prompt.closest(".ns-action-window").innerText;
   }
   for (const dialog of document.querySelectorAll("dialog[open]")) {
     state.dialogs.push(dialog.innerText);
@@ -139,13 +145,69 @@ export class PageScripts {
   static answerConsent(decision) {
     return `{
   let pressed = false;
-  for (const button of document.querySelectorAll(".ns-consent .ns-consent-actions button")) {
+  for (const button of document.querySelectorAll(".ns-consent:not(.ns-action-window) .ns-consent-actions button")) {
     if (!pressed && button.dataset.d === ${JSON.stringify(decision)}) {
       button.click();
       pressed = true;
     }
   }
   pressed;
+}`;
+  }
+
+  /**
+   * Press one button on the chat's prompt for a partner's window. Run it as a user
+   * gesture, so the page may open the window.
+   *
+   * :param choice: "open" or "cancel".
+   * :return: A script whose value is true when a button was pressed.
+   */
+  static answerWindowPrompt(choice) {
+    return `{
+  const button = document.querySelector('.ns-action-window .ns-consent-actions [data-d=${JSON.stringify(choice)}]');
+  if (button) {
+    button.click();
+  }
+  Boolean(button);
+}`;
+  }
+
+  /**
+   * In a partner's window: once its form is there, fill in the fields and submit, or press
+   * Cancel. It acts once per window.
+   *
+   * :param fields: The field values by input name.
+   * :param submit: True to submit the form, false to press Cancel.
+   * :return: A script whose value is a JSON string: what the window showed, and whether
+   *   it acted.
+   */
+  static answerPartnerWindow(fields, submit) {
+    return `{
+  const state = {
+    acted: false,
+    text: document.body.innerText,
+  };
+  const form = document.querySelector("form");
+  if (form && !form.dataset.checkDone) {
+    form.dataset.checkDone = "1";
+    const fields = ${JSON.stringify(fields)};
+    for (const name of Object.keys(fields)) {
+      form.elements[name].value = fields[name];
+      form.elements[name].dispatchEvent(new Event("change"));
+    }
+    state.text = document.body.innerText;
+    if (${submit ? "true" : "false"}) {
+      form.querySelector('button[type="submit"]').click();
+    } else {
+      for (const button of form.querySelectorAll("button")) {
+        if (button.textContent === "Cancel") {
+          button.click();
+        }
+      }
+    }
+    state.acted = true;
+  }
+  JSON.stringify(state);
 }`;
   }
 
@@ -178,7 +240,9 @@ export class PageScripts {
     return `{
   const out = {
     messages: [],
-    cards: document.querySelectorAll("#ns-msgs .ns-consent").length,
+    // Consent cards only. A partner's window prompt has the card style too.
+    cards: document.querySelectorAll("#ns-msgs .ns-consent:not(.ns-action-window)").length,
+    windowPrompts: document.querySelectorAll("#ns-msgs .ns-action-window").length,
     actionStatus: document.querySelector(".ns-action-status summary")?.textContent || "",
     // The status line's detail, which stays hidden until the visitor opens it.
     actionStatusDetail: document.querySelector(".ns-action-status p")?.textContent || "",

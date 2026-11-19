@@ -138,14 +138,14 @@ export function schemaFor(name, fn) {
 // - The visitor's own site gets its local-only actions. An irreversible one also needs
 //   the page's confirmation dialog.
 // - A partner network runs on this page, so it never gets this page's actions. It gets
-//   only the reads its own bridge shares with this page's origin. They run in a hidden
-//   frame on the partner's origin, with the partner's own code.
+//   only the actions its own bridge shares with this page's origin, run with the
+//   partner's own code on the partner's origin. A read runs in a hidden frame. A write
+//   runs in the partner's own window, where the visitor confirms it.
 export function websiteToolRefusal(ctx, action) {
   if (!action) return "no such action is registered for this network";
   if (!(ctx.manifest?.actions?.agentTools || []).includes(action.name)) return "not listed in the manifest's actions.agentTools";
   if (!ctx.isTop) {
     if (action.availability !== "bridge") return "a partner network gets only actions its bridge shares";
-    if (action.effect !== "read") return "a partner network gets only read actions";
     return "";
   }
   if (action.availability !== "local-only") return "not a local-only action";
@@ -394,7 +394,8 @@ export async function dispatchToolCall(ctx, entry, args, parentSpan, chain) {
       throw new Error("Website action is not callable by this agent.");
     }
     const plan = ctx.actions.prepare({ kind: "action", action: entry.ref, arguments: args });
-    const confirm = registered.effect === "irreversible"
+    // A partner's write is confirmed in the partner's own window, not on this page.
+    const confirm = registered.effect === "irreversible" && ctx.isTop
       ? ctx.confirmWebsiteActions : async () => true;
     const receipts = await ctx.actions.execute(plan, confirm, crypto.randomUUID());
     return receipts?.[0] || { action: entry.ref, status: "cancelled", message: "Customer declined; nothing was submitted." };

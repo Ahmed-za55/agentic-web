@@ -103,8 +103,12 @@ Other agent sites can call this network at
 `http://[::1]:8083/little_oven_pizza`. It then runs in their visitor's browser
 with one read that this site shares with the guesthouse and the tour site in
 `bridge/bridge-actions.js`: the menu, the time and the page's facts, such as
-opening hours and delivery. The cart and orders stay on this page. Their visitor
-also gets a card for each partner this network asks.
+opening hours and delivery. It also shares one order with the guesthouse,
+`place_order` in `bridge/order-window.js`. That opens this site's own window,
+where the visitor checks the pizzas and types their name and address, and the
+guesthouse's chat gets back only the order number, the pizzas, the total and
+when. The cart stays on this page. Their visitor also gets a card for each
+partner this network asks.
 
 ## Tests
 
@@ -133,8 +137,9 @@ definitions each model call sends. After changing `little_oven_pizza.hocon` or
 - `little_oven_pizza.network.json`, `agent-mcp.json` and `.well-known/`:
   generated from the `.hocon` file and the manifest. Do not edit them by hand.
 - `bridge/`: the page other agent sites load in a hidden frame before they run
-  this network. `bridge-actions.js` holds the read it shares with them. The
-  build writes the page and its manifest. Do not edit those by hand.
+  this network. `bridge-actions.js` holds the read it shares with them, and
+  `order-window.js` the order it shares with the guesthouse. The build writes
+  the page and its manifest. Do not edit those by hand.
 - `agent-manifest.json` and `links.json`: the public files that describe the
   network.
 - `runtime/`: the browser runtime, copied unchanged from the skill.

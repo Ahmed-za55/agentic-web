@@ -91,12 +91,16 @@ booking codes. The runtime does not filter the request, so check it on the card.
 **Always allow** skips the card, and that check, for that partner until you
 reload the page. After you agree, the partner's network runs in this browser,
 on your key and router, and costs more than the card's token estimate. It gets
-only the reads the partner's site shares with this one, such as the tour site's
-departures and prices or the pizza site's menu and opening hours. Each runs the
-partner's own code in a hidden frame on the partner's address. Bookings and
-orders stay on the partner's own page. If you decline, nothing is sent to the partner, and the assistant
-should say so and give the partner's link from this page. It should do the same
-when the partner is not running.
+only the actions the partner's site shares with this one: the tour site's
+departures and prices and a booking, and the pizza site's menu and opening hours
+and an order. Each runs the partner's own code on the partner's address: a read
+in a hidden frame, a booking or order in the partner's own window. For those,
+the chat first asks you to open that window. There you check the trip or the
+pizzas and type your own details. This chat gets back only the reservation code
+or order number and what was booked, not your details. The demo sites have no
+server, so the booking lives only in that window. If you decline, nothing is
+sent to the partner, and the assistant should say so and give the partner's link
+from this page. It should do the same when the partner is not running.
 
 Other agent sites can call this network at
 `http://127.0.0.1:8080/tidewhistle_guesthouse`. It then runs in their
