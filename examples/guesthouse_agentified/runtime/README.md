@@ -69,8 +69,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   bridge skips its generic dialog.
 - `actions.js` keeps an action's `confirmsInWindow` mark.
 - `index.js` tells visitors that only actions that cannot be undone ask first, when the
-  site offers `website_*` tools. It also finishes an OpenRouter sign-in before it reads
-  the saved setup.
+  site offers `website_*` tools. Opening its "website actions connected" line lists the
+  page's actions by name and marks the ones that ask first. It also finishes an
+  OpenRouter sign-in before it reads the saved setup.
 - `llm.js` keeps Gemini's thought signature (`extra_content`) on each streamed tool call,
   so it goes back to the model on the next step. Gemini 3 refuses that step without it.
   Gemini also streams each tool call whole and without an `index`, so a new call id
