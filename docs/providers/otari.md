@@ -41,8 +41,7 @@ On sites built with the agentify-website skill, including the examples in this r
 pasting the key is enough: the panel fills in the Model and Provider URL above, including
 the EU Provider URL for an EU key.
 
-**Connect with Otari.** On those sites, served over https, the `⚙ AI model settings` panel
-also has a `Connect with Otari` button. The visitor signs in to otari.ai, picks a workspace
+**Connect with Otari.** On those sites, the `⚙ AI model settings` panel also has a `Connect with Otari` button. The visitor signs in to otari.ai, picks a workspace
 and approves a key for the site, with nothing to copy. The panel saves the key and fills in
 `alibaba/qwen3.8-flash` and the Provider URL of the key's region. The site owner registers
 nothing: the site's address is its client ID. Things to know:
@@ -59,9 +58,9 @@ nothing: the site's address is its client ID. Things to know:
   does not say whose page asked.
 - **Kept in the browser.** The key is saved like a pasted key, so any script on the site
   can read it. The spending limit and expiry bound what a stolen key can spend.
-- **Where it works.** Only on an https site in its own tab. otari.ai refuses a site on your
-  own computer (`localhost` or `127.0.0.1`), so the button is hidden there: deploy the site,
-  for example to GitHub Pages, or paste a key instead.
+- **Where it works.** The page must be served over https, or opened on your own computer
+  at `localhost` or `127.0.0.1` on any port. The button is hidden when the page is inside a
+  frame.
 
 Things to know:
 

@@ -263,23 +263,41 @@ class TestOtariConnect {
   }
 
   /**
-   * The Connect button works only on an https page in its own tab: otari.ai refuses this
-   * computer's own address.
+   * The Connect button works only in a secure context and when the page is not in a frame.
    */
-  static testNeedsOwnHttpsTab() {
+  static testNeedsOwnSecureTab() {
     const browser = TestOtariConnect.open();
     try {
       assert.equal(OtariConnect.isAvailable(), true);
+      globalThis.isSecureContext = false;
+      assert.equal(OtariConnect.isAvailable(), false);
+      globalThis.isSecureContext = true;
       globalThis.top = {};
       assert.equal(OtariConnect.isAvailable(), false);
     } finally {
       browser.restore();
     }
-    const local = TestOtariConnect.open("http://localhost:8080/");
+  }
+
+  /**
+   * A site on this computer's own address connects too: its origin, with the port, is its
+   * client ID, and the callback is on that origin.
+   */
+  static async testLocalSiteSignsIn() {
+    const page = "http://localhost:8080/";
+    const browser = TestOtariConnect.open(page);
     try {
-      assert.equal(OtariConnect.isAvailable(), false);
+      assert.equal(OtariConnect.isAvailable(), true);
+      await OtariConnect.start();
+      const authUrl = new URL(browser.assigned.at(-1));
+      assert.equal(authUrl.searchParams.get("client_id"), "http://localhost:8080");
+      assert.equal(authUrl.searchParams.get("redirect_uri"), page);
+      browser.visit(browser.otari.approve(authUrl.href));
+      assert.equal((await OtariConnect.finish())?.status, "connected");
+      assert.equal(browser.href, page);
+      assert.equal(browser.otari.exchanges[0].client_id, "http://localhost:8080");
     } finally {
-      local.restore();
+      browser.restore();
     }
   }
 }
@@ -293,4 +311,5 @@ test("a code otari.ai refuses saves nothing", TestOtariConnect.testRefusedCodeSa
 test("cancelling on the consent screen saves nothing", TestOtariConnect.testDeniedSignIn);
 test("a page's own code parameter is left alone", TestOtariConnect.testPageCodeLeftAlone);
 test("connecting again keeps one Otari setup", TestOtariConnect.testConnectAgainKeepsOneSetup);
-test("the Connect button needs its own https tab", TestOtariConnect.testNeedsOwnHttpsTab);
+test("the Connect button needs its own secure tab", TestOtariConnect.testNeedsOwnSecureTab);
+test("a site on this computer's own address signs in", TestOtariConnect.testLocalSiteSignsIn);

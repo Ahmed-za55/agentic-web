@@ -52,8 +52,8 @@ Edited files. Each one has a line near its top saying that it was changed:
   the template's default router, and fills in its settings for a key that starts with
   `otk_`. A key that starts with `otk_v1_eu_` gets the EU gateway,
   `https://eu.api.otari.ai/api/v1`, because the default gateway refuses it with HTTP 421.
-  On an https page the panel has a Connect with Otari button, and Otari is not also
-  listed with the other providers. For an otari.ai key it links to the keys page on
+  The panel has a Connect with Otari button, and where it works Otari is not also listed
+  with the other providers. For an otari.ai key it links to the keys page on
   otari.ai.
   The Google AI Studio model is `models/gemini-3.8-flash`, the name Google's model
   list uses, so the panel's model check accepts it. The panel also has a Connect with
@@ -91,7 +91,7 @@ Added files:
   limit and expiry, which the visitor can change on otari.ai's consent screen. It checks
   the reply's state and issuer, swaps the one-time code for a key in the visitor's
   workspace, and saves the key like a pasted one, for the API of the key's region (US or
-  EU). Sites need no app registration. otari.ai accepts only https sites.
+  EU). Sites need no app registration.
 - `in-use-line.js` builds the "In use" line of ⚙ AI model settings: the provider, the
   model and the last four characters of the key the chat uses.
 

@@ -337,8 +337,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const net = engine.top?.network;
   const title = manifest?.networks?.[0]?.description || net?.name || "Agent network";
   const needsByok = !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo");
-  // The Connect buttons need an https page in its own tab. OpenRouter also accepts this
-  // computer's own address; otari.ai does not.
+  // The Connect buttons need an https page (or this computer's own address) in its own tab.
   const canConnect = OpenRouterConnect.isAvailable();
   const canConnectOtari = OtariConnect.isAvailable();
   const connectNames = [canConnectOtari && "Connect with Otari", canConnect && "Connect with OpenRouter"].filter(Boolean).join(" or ");

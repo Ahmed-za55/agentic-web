@@ -105,14 +105,14 @@ export class OtariConnect {
    * Say whether this page can run the sign-in.
    *
    * The PKCE challenge needs the browser's crypto functions, which work only in a secure
-   * context. otari.ai accepts only an https site, so a page on this computer's own address
-   * cannot connect. A page inside a frame cannot show otari.ai's sign-in page.
+   * context: an https page or this computer's own address. A page inside a frame cannot
+   * show otari.ai's sign-in page.
    *
    * :return: True when the Connect button can work on this page.
    */
   static isAvailable() {
     const secure = Boolean(globalThis.isSecureContext && globalThis.crypto?.subtle);
-    return secure && globalThis.location?.protocol === "https:" && globalThis.top === globalThis.self;
+    return secure && globalThis.top === globalThis.self;
   }
 
   /**
