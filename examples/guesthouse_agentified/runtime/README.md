@@ -59,7 +59,9 @@ Edited files. Each one has a line near its top saying that it was changed:
   OpenRouter key it links to the key's page on OpenRouter. The panel's first line says
   which provider, model and key the chat uses. When a partner's action needs the
   partner's own window, the chat asks in a message with an Open button that names the
-  partner.
+  partner. "Agents working for you" shows each partner's address with its path, such as
+  `localhost:8081/marrow_point_harbor_tours`, not only its host. Before the first call it
+  names the partner from `link_labels`, as the consent card does.
 - `action-transport.js` opens the confirmation dialog with focus on its heading, so a
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
   It lets the chat ask before a partner's window opens (`setActionWindowPrompt`). An
