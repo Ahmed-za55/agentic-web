@@ -709,7 +709,7 @@ class CheckPartnerTest {
 
   /**
    * A URL that is not a full network URL fails before anything is fetched. Plain http fails
-   * for any host but localhost and 127.0.0.1.
+   * for any host but localhost, 127.0.0.1 and [::1].
    */
   static async testBadUrlsFail() {
     const cases = [
@@ -729,7 +729,7 @@ class CheckPartnerTest {
     const plain = await CheckPartnerTest.check(["http://tours.example/harbor_tours", "--origin", CheckPartnerTest.CALLER], CheckPartnerTest.stubFetch.bind(null, routes, calls));
     assert.equal(plain.code, 1);
     assert.deepEqual(plain.findings, [
-      "ERROR: http://tours.example/harbor_tours uses http. Use https for every host but localhost and 127.0.0.1.",
+      "ERROR: http://tours.example/harbor_tours uses http. Use https for every host but localhost, 127.0.0.1 and [::1].",
     ]);
     const usage = await CheckPartnerTest.check(["https://tours.example/harbor_tours", "--origin", "tours"], fetch);
     assert.equal(usage.code, 2);

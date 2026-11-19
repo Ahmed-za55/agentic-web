@@ -16,7 +16,9 @@ import http from "node:http";
  * "NESTED_ANSWER:". Any other request comes from the visitor's site. It calls the partner
  * tool, whose description starts with "Hand off to the" (runtime/runner.js,
  * buildToolTable), until it has the scripted number of tool results. Then it answers
- * "CALLER_FINAL:" with the text of the last result.
+ * "CALLER_FINAL:" with the text of the last result. A site with several partners gets
+ * several such tools, so aim() names the one each side calls; without it, each calls the
+ * first one offered.
  *
  * It records each request with flags and names only, never the key.
  */
@@ -64,6 +66,21 @@ export class MockRouter {
     this.toolCalls = 0;
     this.server = null;
     this.nestedRequest = null;
+    // The partner tool each side calls, or null for the first one offered.
+    this.callerTool = null;
+    this.onwardTool = null;
+  }
+
+  /**
+   * Name the partner tool the visitor's site calls, and the one the partner calls on a
+   * second hop. A side that is not offered its named tool calls none.
+   *
+   * :param callerTool: The tool name for the visitor's site, or null for the first offered.
+   * :param onwardTool: The tool name for the partner's second hop, or null for the first offered.
+   */
+  aim(callerTool, onwardTool) {
+    this.callerTool = callerTool;
+    this.onwardTool = onwardTool;
   }
 
   /**
@@ -191,7 +208,7 @@ export class MockRouter {
       return {text: `NESTED_ANSWER: ${flags}`};
     }
     if (role === "partner") {
-      const onward = this.nestedRequest === null ? null : MockRouter.handoffTool(tools);
+      const onward = this.nestedRequest === null ? null : MockRouter.handoffTool(tools, this.onwardTool);
       if (onward !== null && results.length === 0) {
         return {
           tool: onward,
@@ -203,7 +220,7 @@ export class MockRouter {
       }
       return {text: `PARTNER_ANSWER: ${flags}`};
     }
-    const handoff = MockRouter.handoffTool(tools);
+    const handoff = MockRouter.handoffTool(tools, this.callerTool);
     if (handoff !== null && results.length < this.handoffs) {
       return {
         tool: handoff,
@@ -221,15 +238,16 @@ export class MockRouter {
   }
 
   /**
-   * Find the first partner tool a request offers.
+   * Find a partner tool a request offers: the one named, or else the first.
    *
    * :param tools: The tools the request offers.
-   * :return: The tool's name, or null.
+   * :param name: The tool name to find, or null for the first partner tool.
+   * :return: The tool's name, or null when the request offers no such tool.
    */
-  static handoffTool(tools) {
+  static handoffTool(tools, name) {
     for (const tool of tools) {
       const fn = tool.function || {};
-      if (String(fn.description || "").startsWith(MockRouter.HANDOFF)) {
+      if (String(fn.description || "").startsWith(MockRouter.HANDOFF) && (name === null || fn.name === name)) {
         return fn.name;
       }
     }

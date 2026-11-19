@@ -227,6 +227,17 @@ Do this only when the user names a partner site that publishes an agent network.
 
   Use the same host names in the partner URLs and in `allowed_peers`: site A calls
   `http://localhost:8081/<network B>`, and site B calls `http://127.0.0.1:8080/<network A>`.
+
+  A third site needs a third host name, `[::1]`, the IPv6 loopback address. Bind its
+  server there, since `--open-as` alone would leave it on `127.0.0.1`, and quote URLs
+  with brackets in a shell:
+
+  ```shell
+  node SKILL_DIR/scripts/serve_site.mjs <site C> --host ::1 --port 8083
+  ```
+
+  Sites A and B then call `http://[::1]:8083/<network C>` and list
+  `http://[::1]:8083` in `allowed_peers`.
 - **The consent card without a key.** See "Check without a key" in
   `bundle_and_hosting.md`.
 - **The live check.** With the user's own key, check that the card appears before anything

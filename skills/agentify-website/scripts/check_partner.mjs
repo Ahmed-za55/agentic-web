@@ -202,7 +202,7 @@ export class PartnerCheck {
       return null;
     }
     if (url.protocol === "http:" && !PartnerCheck.LOOPBACK_HOSTS.includes(url.hostname)) {
-      this.errors.push(`${ref} uses http. Use https for every host but localhost and 127.0.0.1.`);
+      this.errors.push(`${ref} uses http. Use https for every host but localhost, 127.0.0.1 and [::1].`);
     }
     const segments = url.pathname.split("/");
     // The runtime reads the manifest from the folder before the last path segment, and

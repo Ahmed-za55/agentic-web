@@ -57,6 +57,17 @@ class LinkingTest {
     guesthouse: "http://127.0.0.1:8080",
     tours: "http://localhost:8081",
     caller: "http://localhost:8082",
+    pizza: "http://[::1]:8083",
+  };
+
+  /**
+   * Each site's name in test titles.
+   */
+  static TITLES = {
+    guesthouse: "guesthouse",
+    tours: "tour site",
+    caller: "fixture caller",
+    pizza: "pizza site",
   };
 
   /**
@@ -85,7 +96,77 @@ class LinkingTest {
       message: "Where can we stay in Marrow Point from 12 to 14 June?",
       request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
     },
+    "gh-to-pizza": {
+      caller: "guesthouse",
+      partner: "pizza",
+      partnerUrl: "http://[::1]:8083/little_oven_pizza",
+      message: "Where can we get dinner near the harbor on our first night?",
+      request: "What pizzas do you have, and can we order for pickup or delivery?",
+    },
+    "pizza-to-gh": {
+      caller: "pizza",
+      partner: "guesthouse",
+      partnerUrl: "http://127.0.0.1:8080/tidewhistle_guesthouse",
+      message: "Is there somewhere to stay near you from 12 to 14 June?",
+      request: "Is a room free for two adults from 12 to 14 June, and what would it cost?",
+    },
+    "tours-to-pizza": {
+      caller: "tours",
+      partner: "pizza",
+      partnerUrl: "http://[::1]:8083/little_oven_pizza",
+      message: "Where can we eat after the evening sail?",
+      request: "What pizzas do you offer, and when are you open?",
+    },
+    "pizza-to-tours": {
+      caller: "pizza",
+      partner: "tours",
+      partnerUrl: "http://localhost:8081/marrow_point_harbor_tours",
+      message: "Is there a boat trip we could take before dinner on 13 June?",
+      request: "Is there a boat trip for two adults on 13 June, and what does it cost?",
+    },
   };
+
+  /**
+   * The checks every direction runs: the case id, the method and what it checks. L1 is
+   * called L4 when an example site, not the fixture caller, makes the call.
+   */
+  static CASES = [
+    {
+      id: "L1",
+      method: "testAllowedCall",
+      text: "one card, then the partner's files and bridge, on the caller's model",
+    },
+    {
+      id: "L2",
+      method: "testVisitorModel",
+      text: "the visitor's model is used by both sites",
+    },
+    {
+      id: "L3",
+      method: "testDecline",
+      text: "a decline contacts no one",
+    },
+    {
+      id: "L5",
+      method: "testNoCallBack",
+      text: "the partner is not offered a call back",
+    },
+    {
+      id: "L6",
+      method: "testSecondCallSkipped",
+      text: "a second call is skipped and the partner runs once",
+    },
+    {
+      id: "L7",
+      method: "testPolicyRefusal",
+      text: "a partner missing from allowed_peers is refused",
+    },
+    {
+      id: "L9",
+      method: "testInvalidPartner",
+      text: "a partner that fails validation never runs",
+    },
+  ];
 
   /**
    * The second hop: the test caller asks the tour site, and the tour site's network asks
@@ -98,8 +179,8 @@ class LinkingTest {
   };
 
   /**
-   * Find the site folders. LINKING_GUESTHOUSE and LINKING_TOURS point the tests at other
-   * copies, such as a fresh-agent round's output.
+   * Find the site folders. LINKING_GUESTHOUSE, LINKING_TOURS and LINKING_PIZZA point the
+   * tests at other copies, such as a fresh-agent round's output.
    *
    * :return: For each site, its folder, and for the tour site whether it is the real one.
    */
@@ -118,8 +199,32 @@ class LinkingTest {
       guesthouse: path.resolve(process.env.LINKING_GUESTHOUSE || path.join(LinkingTest.REPO, "examples", "guesthouse_agentified")),
       tours: tours,
       caller: path.join(LinkingTest.REPO, "tests", "linking", "fixtures", "caller_site"),
+      pizza: path.resolve(process.env.LINKING_PIZZA || path.join(LinkingTest.REPO, "examples", "marrow_point_pizza_agentified")),
       realTours: real,
     };
+  }
+
+  /**
+   * Serve every site under its origin.
+   *
+   * :param web: The ExampleWeb.
+   * :param sites: The folders from sites().
+   */
+  static serveAll(web, sites) {
+    for (const role of Object.keys(LinkingTest.ORIGINS)) {
+      web.serve(LinkingTest.ORIGINS[role], sites[role]);
+    }
+  }
+
+  /**
+   * The tool name a site's network gives a partner network.
+   *
+   * :param partnerUrl: The partner's network URL.
+   * :param callerOrigin: The calling site's origin.
+   * :return: The tool name.
+   */
+  static toolName(partnerUrl, callerOrigin) {
+    return safeName(parseExternalAgent(partnerUrl, callerOrigin).agentName);
   }
 
   /**
@@ -196,12 +301,13 @@ class LinkingTest {
     const sites = LinkingTest.sites();
     const router = new MockRouter(LinkingTest.KEY, spec.request, handoffs, 0);
     const web = new ExampleWeb(router, new URL(LinkingTest.ROUTER).origin, LinkingTest.KEY);
-    web.serve(LinkingTest.ORIGINS.guesthouse, sites.guesthouse);
-    web.serve(LinkingTest.ORIGINS.tours, sites.tours);
-    web.serve(LinkingTest.ORIGINS.caller, sites.caller);
+    LinkingTest.serveAll(web, sites);
     const caller = await LinkingTest.readSite(sites[spec.caller]);
     const partner = await LinkingTest.readSite(sites[spec.partner]);
     const callerOrigin = LinkingTest.ORIGINS[spec.caller];
+    const tool = LinkingTest.toolName(spec.partnerUrl, callerOrigin);
+    // A site with several partners offers several partner tools: call this direction's.
+    router.aim(tool, null);
     // Node cannot import the calling site's action module over HTTP.
     const served = structuredClone(caller.manifest);
     delete served.actions;
@@ -219,7 +325,7 @@ class LinkingTest {
       partnerOrigin: LinkingTest.ORIGINS[spec.partner],
       partnerHost: new URL(LinkingTest.ORIGINS[spec.partner]).host,
       label: (caller.network.linkLabels || {})[spec.partnerUrl] || "",
-      tool: safeName(parseExternalAgent(spec.partnerUrl, callerOrigin).agentName),
+      tool: tool,
       callerModel: String((front.llm_config || {}).model_name || ""),
       partnerModel: String((partnerFront.llm_config || {}).model_name || ""),
     };
@@ -235,15 +341,16 @@ class LinkingTest {
   static async setUpSecondHop(allowed) {
     const sites = LinkingTest.sites();
     const toursUrl = LinkingTest.DIRECTIONS["gh-to-tours"].partnerUrl;
+    const guesthouseUrl = LinkingTest.DIRECTIONS["tours-to-gh"].partnerUrl;
     const router = new MockRouter(LinkingTest.KEY, LinkingTest.SECOND_HOP.request, 1, 0);
     router.nest(LinkingTest.SECOND_HOP.onward);
+    const callerOrigin = LinkingTest.ORIGINS.caller;
+    // The tour site also calls the pizza site, so name the guesthouse for the second hop.
+    router.aim(LinkingTest.toolName(toursUrl, callerOrigin), LinkingTest.toolName(guesthouseUrl, LinkingTest.ORIGINS.tours));
     const web = new ExampleWeb(router, new URL(LinkingTest.ROUTER).origin, LinkingTest.KEY);
-    web.serve(LinkingTest.ORIGINS.guesthouse, sites.guesthouse);
-    web.serve(LinkingTest.ORIGINS.tours, sites.tours);
-    web.serve(LinkingTest.ORIGINS.caller, sites.caller);
+    LinkingTest.serveAll(web, sites);
     const caller = await LinkingTest.readSite(sites.caller);
     const tours = await LinkingTest.readSite(sites.tours);
-    const callerOrigin = LinkingTest.ORIGINS.caller;
     // Node cannot import the calling site's action module over HTTP.
     const manifest = structuredClone(caller.manifest);
     delete manifest.actions;
@@ -746,7 +853,7 @@ class LinkingTest {
    * L8: an example keeps the skill's runtime byte for byte and the template's rules, and
    * its build --check reports nothing.
    *
-   * :param role: "guesthouse" or "tours".
+   * :param role: "guesthouse", "tours" or "pizza".
    * :param t: The test context.
    */
   static async testExampleMatchesSkill(role, t) {
@@ -828,30 +935,18 @@ class LinkingTest {
   }
 }
 
-test("L1 fixture caller -> guesthouse: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "caller-to-gh"));
-test("L2 fixture caller -> guesthouse: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "caller-to-gh"));
-test("L3 fixture caller -> guesthouse: a decline contacts no one", LinkingTest.testDecline.bind(null, "caller-to-gh"));
-test("L5 fixture caller -> guesthouse: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "caller-to-gh"));
-test("L6 fixture caller -> guesthouse: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "caller-to-gh"));
-test("L7 fixture caller -> guesthouse: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "caller-to-gh"));
-test("L9 fixture caller -> guesthouse: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "caller-to-gh"));
-test("L1 guesthouse -> tour site: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "gh-to-tours"));
-test("L2 guesthouse -> tour site: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "gh-to-tours"));
-test("L3 guesthouse -> tour site: a decline contacts no one", LinkingTest.testDecline.bind(null, "gh-to-tours"));
-test("L5 guesthouse -> tour site: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "gh-to-tours"));
-test("L6 guesthouse -> tour site: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "gh-to-tours"));
-test("L7 guesthouse -> tour site: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "gh-to-tours"));
-test("L9 guesthouse -> tour site: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "gh-to-tours"));
-test("L4 tour site -> guesthouse: one card, then the partner's files and bridge, on the caller's model", LinkingTest.testAllowedCall.bind(null, "tours-to-gh"));
-test("L2 tour site -> guesthouse: the visitor's model is used by both sites", LinkingTest.testVisitorModel.bind(null, "tours-to-gh"));
-test("L3 tour site -> guesthouse: a decline contacts no one", LinkingTest.testDecline.bind(null, "tours-to-gh"));
-test("L5 tour site -> guesthouse: the partner is not offered a call back", LinkingTest.testNoCallBack.bind(null, "tours-to-gh"));
-test("L6 tour site -> guesthouse: a second call is skipped and the partner runs once", LinkingTest.testSecondCallSkipped.bind(null, "tours-to-gh"));
-test("L7 tour site -> guesthouse: a partner missing from allowed_peers is refused", LinkingTest.testPolicyRefusal.bind(null, "tours-to-gh"));
-test("L9 tour site -> guesthouse: a partner that fails validation never runs", LinkingTest.testInvalidPartner.bind(null, "tours-to-gh"));
+// Every direction runs every case in CASES.
+for (const direction of Object.keys(LinkingTest.DIRECTIONS)) {
+  const spec = LinkingTest.DIRECTIONS[direction];
+  for (const item of LinkingTest.CASES) {
+    const id = item.id === "L1" && spec.caller !== "caller" ? "L4" : item.id;
+    test(`${id} ${LinkingTest.TITLES[spec.caller]} -> ${LinkingTest.TITLES[spec.partner]}: ${item.text}`, LinkingTest[item.method].bind(null, direction));
+  }
+}
 test("L10 fixture caller -> tour site -> guesthouse: each hop asks first, all on the caller's model", LinkingTest.testSecondHop.bind(null, true));
 test("L10 fixture caller -> tour site -> guesthouse: the tour site's own allowed_peers refuses the second hop", LinkingTest.testSecondHop.bind(null, false));
 test("L8 the guesthouse keeps the skill's runtime and rules, and builds clean", LinkingTest.testExampleMatchesSkill.bind(null, "guesthouse"));
 test("L8 the tour site keeps the skill's runtime and rules, and builds clean", LinkingTest.testExampleMatchesSkill.bind(null, "tours"));
+test("L8 the pizza site keeps the skill's runtime and rules, and builds clean", LinkingTest.testExampleMatchesSkill.bind(null, "pizza"));
 test("L8 the caller test site keeps the template's rules and builds clean", LinkingTest.testFixtureMatchesSkill.bind(null, "caller"));
 test("L8 the partner test site keeps the template's rules and builds clean", LinkingTest.testFixtureMatchesSkill.bind(null, "partner"));

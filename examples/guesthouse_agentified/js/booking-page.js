@@ -26,6 +26,7 @@ export class BookingPage {
     payment: "payment-note",
     changes: "changes-note",
     tours: "tours-note",
+    food: "food-note",
     travel: "travel-note",
     contact: "contact",
     phoneHours: "phone-hours",

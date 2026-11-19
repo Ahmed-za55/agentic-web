@@ -236,7 +236,7 @@ class AgentifiedSiteTest {
     }
     // What the site cannot do.
     assert.ok(instructions.includes("This site cannot take payment online, change a reservation, cancel one trip of several"));
-    assert.ok(instructions.includes("or book rooms."));
+    assert.ok(instructions.includes("book rooms or order food."));
     assert.ok(instructions.includes("ask tidewhistle_guesthouse what it offers and how to book."));
   }
 

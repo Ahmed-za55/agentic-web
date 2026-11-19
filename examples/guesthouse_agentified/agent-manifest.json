@@ -25,7 +25,8 @@
     "byok_router": "https://api.otari.ai/api/v1"
   },
   "allowed_peers": [
-    "http://localhost:8081"
+    "http://localhost:8081",
+    "http://[::1]:8083"
   ],
   "peer_policy": {
     "mode": "closed",

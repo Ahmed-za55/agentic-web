@@ -374,7 +374,7 @@ class BuildNetworkTest {
       const built = BuildNetworkTest.build(folder, []);
       assert.equal(built.code, 1);
       assert.deepEqual(BuildNetworkTest.findings(built.out), [
-        "ERROR: seaside_assistant: partner http://tours.example/harbor_tours uses http. Use https for every host but localhost and 127.0.0.1.",
+        "ERROR: seaside_assistant: partner http://tours.example/harbor_tours uses http. Use https for every host but localhost, 127.0.0.1 and [::1].",
       ]);
     } finally {
       await BuildNetworkTest.remove(folder);

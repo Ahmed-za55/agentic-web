@@ -172,8 +172,8 @@ If the user wants a live check, ask them to enter their own key in **⚙ AI mode
 each sample query. If the site calls a partner, check that the consent card names it,
 that nothing reaches the partner before the visitor answers (the browser's Network panel,
 or the `--log` file of a partner served on this machine), and that declining gives an
-honest answer. Never ask the user to paste a key into the chat. On `localhost` and
-`127.0.0.1`, the runtime also saves keys in a cookie that any local site can read, so
+honest answer. Never ask the user to paste a key into the chat. On `localhost`,
+`127.0.0.1` and `[::1]`, the runtime also saves keys in a cookie that any local site can read, so
 suggest a key with a low spending limit. Afterwards, they should delete the saved setup
 and close the tab: the tab keeps using the key until it is closed (see "Serving and
 trying it" in `references/bundle_and_hosting.md`).

@@ -7,7 +7,8 @@ plain HTML, CSS and JavaScript modules with no dependencies or build step.
 This copy also has an assistant on the page. It runs in the visitor's browser,
 uses the visitor's own LLM key, answers from the site's own data, and calls the
 site's own functions to fill the basket, reserve and cancel. It can also ask
-Tidewhistle Guesthouse, a linked agent website, what it offers.
+two linked agent websites, Tidewhistle Guesthouse and Little Oven Pizza, what
+they offer.
 
 The commands below assume this folder sits at `examples/harbor_tours_agentified`
 in the agentic-web repository, next to `examples/guesthouse_agentified`, and that
@@ -102,34 +103,35 @@ websites can run this network in their own visitors' browsers. They get none of
 this site's tools, so their assistant says what this site offers and points to
 this page for times, places and reservations.
 
-## Linked site
+## Linked sites
 
-The assistant asks Tidewhistle Guesthouse what it offers through its network at
-`http://127.0.0.1:8080/tidewhistle_guesthouse`. Serve the guesthouse from the
-repository root with:
+The assistant asks two partner sites what they offer: Tidewhistle Guesthouse,
+through its network at `http://127.0.0.1:8080/tidewhistle_guesthouse`, and
+Little Oven Pizza, at `http://[::1]:8083/little_oven_pizza`. Serve them from the
+repository root, each in its own terminal:
 
 ```shell
 node skills/agentify-website/scripts/serve_site.mjs examples/guesthouse_agentified --port 8080 --open-as 127.0.0.1
+node skills/agentify-website/scripts/serve_site.mjs examples/marrow_point_pizza_agentified --host ::1 --port 8083
 ```
 
-The two sites use different host names, `127.0.0.1` and `localhost`, because on
-one host name the runtime's key cookie would reach the other site with its
-requests.
+The three sites use different host names, `127.0.0.1`, `localhost` and `[::1]`,
+because on one host name the runtime's key cookie would reach another site with
+its requests.
 
 Before anything is sent, a card in the chat asks you to allow the contact. It
-names Tidewhistle Guesthouse, shows its host and the first 140 characters of the
+names the partner, shows its host and the first 140 characters of the
 request. A request is one or two short sentences, such as "What do you offer,
 and how do we book a stay?". The assistant is told never to put names,
 emails, phone numbers or booking codes in it, but the runtime does not filter
-the request, so check it on the card. The guesthouse's network then runs in
-this browser, on your key and model, with none of the guesthouse's own site
-tools, so it can say what it offers and how to book, but not which rooms are
-free or what they cost. Book rooms with the guesthouse directly.
+the request, so check it on the card. The partner's network then runs in this
+browser, on your key and model, with none of the partner's own site tools, so it
+can say what it offers and how to book or order, but not what is free or what it
+costs today. Book rooms and order food with the partners directly.
 
-The `127.0.0.1` address works only on this machine. Before hosting, put the
-guesthouse's https network URL in the `.hocon` file's `tools` and
-`link_labels`, and its origin in `allowed_peers` in `agent-manifest.json`, then
-build again.
+These addresses work only on this machine. Before hosting, put each partner's
+https network URL in the `.hocon` file's `tools` and `link_labels`, and its
+origin in `allowed_peers` in `agent-manifest.json`, then build again.
 
 ## Build and test
 
@@ -141,10 +143,11 @@ node skills/agentify-website/scripts/build_network.mjs examples/harbor_tours_age
 node --test "examples/harbor_tours_agentified/tests/*.test.mjs"
 ```
 
-With both sites served, check the link both ways:
+With the three sites served, check each link:
 
 ```shell
 node skills/agentify-website/scripts/check_partner.mjs http://127.0.0.1:8080/tidewhistle_guesthouse --origin http://localhost:8081
+node skills/agentify-website/scripts/check_partner.mjs "http://[::1]:8083/little_oven_pizza" --origin http://localhost:8081
 node skills/agentify-website/scripts/check_partner.mjs http://localhost:8081/marrow_point_harbor_tours
 ```
 
