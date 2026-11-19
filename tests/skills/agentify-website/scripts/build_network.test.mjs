@@ -749,6 +749,26 @@ class BuildNetworkTest {
   }
 
   /**
+   * Instructions need not name each website tool, because its description says when to
+   * call it. Such a site builds with no warning.
+   */
+  static async testUnnamedWebsiteToolIsFine() {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      await BuildNetworkTest.editHocon(folder, "- Call website_get_desk_state for opening hours and the page's links.\n", "- Each website_* tool's description says when to call it and what to call before it.\n");
+      // A second tool that no instructions name at all.
+      const manifest = await BuildNetworkTest.readManifest(folder);
+      manifest.actions.agentTools.push("find_moorings");
+      await BuildNetworkTest.writeManifest(folder, manifest);
+      const built = BuildNetworkTest.build(folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), []);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
    * The default instruction budget is 5,000 characters, and its warning says what to shorten.
    */
   static async testInstructionBudget() {
@@ -809,4 +829,5 @@ test("two partners that become one tool name are an error", BuildNetworkTest.tes
 test("a partner listed twice is an error", BuildNetworkTest.testDoubledPartnerIsAnError);
 test("a partner named like the agent's own tool is an error, in either order", BuildNetworkTest.testPartnerNamedLikeOwnAgentIsAnError);
 test("a read action with a hyphen fills the partner rule with no warning", BuildNetworkTest.testHyphenatedReadAction);
+test("a website tool that no instructions name builds with no warning", BuildNetworkTest.testUnnamedWebsiteToolIsFine);
 test("the instruction budget is 5,000 characters", BuildNetworkTest.testInstructionBudget);

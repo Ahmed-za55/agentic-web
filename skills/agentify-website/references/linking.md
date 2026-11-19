@@ -258,9 +258,9 @@ Do this only when the user names a partner site that publishes an agent network.
 2. Add `"bridge": "./bridge/action-bridge.html"` to `actions` in `agent-manifest.json`.
 3. Add `peer_rules` from `templates/network.hocon` to `commondefs.replacement_strings`,
    and `{peer_rules}` to the end of the front agent's instructions, after
-   `{cruse_rules}`. In each write action's "How to work" line, say to call it "only when
-   the visitor asks", as `templates/network.hocon` does: `testActionsMatchManifest`
-   checks it. Then check the instruction count the build prints.
+   `{cruse_rules}`. In each write action's description, say to call it "only when the
+   visitor asks", as `templates/site-actions.js` does: `testActionsMatchManifest` checks
+   it. Then check the instruction count the build prints.
 4. Check the front agent's first sentence. It should name the kinds of things the site
    offers ("Writing instructions" in `network_design.md`): a caller learns little more
    than that.

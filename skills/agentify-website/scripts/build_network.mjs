@@ -764,7 +764,9 @@ class NetworkBuilder {
   }
 
   /**
-   * Compare website_* names in instructions with the manifest's agentTools list.
+   * Check that every website_* name in the instructions is in the manifest's agentTools.
+   *
+   * Instructions need not name every tool: each action's description says when to call it.
    *
    * :param manifest: The parsed agent-manifest.json.
    * :param resolved: The network after the runtime applied commondefs and defaults.
@@ -791,11 +793,6 @@ class NetworkBuilder {
     for (const name of mentioned) {
       if (!agentTools.includes(name)) {
         this.errors.push(`Instructions mention website_${name}, but "${name}" is not in manifest actions.agentTools.`);
-      }
-    }
-    for (const name of agentTools) {
-      if (!mentioned.has(name)) {
-        this.warnings.push(`actions.agentTools lists "${name}", but no instructions say when to call website_${name}.`);
       }
     }
   }
