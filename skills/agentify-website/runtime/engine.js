@@ -57,18 +57,22 @@ export function selectTopRouter(manifest, routerOverride, byokKey, modelOverride
   const hasExplicitModel = !!String(modelOverride || "").trim();
   let requested = String(routerOverride || "").replace(/\/$/, "");
   const requestedMock = requested && declared.mock === true && sameRouter(requested, declared.base_url);
+  // A sponsored default router is paid for by the site and takes no
+  // visitor key (spec §4, "Default inference"). A visitor's own key never goes to it.
+  const sponsored = declared.sponsored === true && declared.mock !== true;
+  const requestedSponsored = requested && sponsored && sameRouter(requested, declared.base_url);
 
-  if ((hasRealKey || hasExplicitModel) && (!requested || requestedMock)) {
+  if ((hasRealKey || hasExplicitModel) && (!requested || requestedMock || requestedSponsored)) {
     if (!declared.byok_router) {
       throw new Error("A real API key is configured, but this site publishes no AI provider route.");
     }
     requested = declared.byok_router;
-    return { baseUrl: requested, mock: false, upgradedToByok: true };
+    return { baseUrl: requested, mock: false, sponsored: false, upgradedToByok: true };
   }
   if (requested) {
-    return { baseUrl: requested, mock: declared.mock === true && sameRouter(requested, declared.base_url), upgradedToByok: false };
+    return { baseUrl: requested, mock: declared.mock === true && sameRouter(requested, declared.base_url), sponsored: !!requestedSponsored, upgradedToByok: false };
   }
-  return { baseUrl: declared.base_url || "", mock: declared.mock === true, upgradedToByok: false };
+  return { baseUrl: declared.base_url || "", mock: declared.mock === true, sponsored, upgradedToByok: false };
 }
 
 export function manifestAllowsPeer(target, manifest, runtimeAllowedPeers = new Set()) {
@@ -90,7 +94,7 @@ export function selectPeerRouter(callerRouter) {
   if (!callerRouter?.baseUrl) {
     throw new Error("The caller has no active LLM router to use for this peer network.");
   }
-  return { baseUrl: callerRouter.baseUrl, mock: callerRouter.mock === true };
+  return { baseUrl: callerRouter.baseUrl, mock: callerRouter.mock === true, sponsored: callerRouter.sponsored === true };
 }
 
 export class Engine {
@@ -175,6 +179,7 @@ export class Engine {
       this.trace.note("action_catalog", { count: this.actions.catalog({ base, network: network.name }).length,
         issues: this.actions.discoveryIssues });
       this.mockLLM = llm.mock; // true when using the deterministic mock router
+      this.sponsoredLLM = llm.sponsored; // true when the site pays and no key is needed
       this.byokRouter = manifest.llm_router?.byok_router || ""; // real-LLM proxy for BYOK keys
       this.trace.end(span, {
         network: network.name,
@@ -210,12 +215,14 @@ export class Engine {
     // contribute network definitions only and can never redirect execution or keys.
     let routerBase;
     let mock;
+    let sponsored;
     if (isTop) {
       const selected = selectTopRouter(manifest, this.routerOverride, this.byokKey, this.modelOverride);
       routerBase = selected.baseUrl;
       mock = selected.mock;
+      sponsored = selected.sponsored === true;
       this.routerOverride = selected.upgradedToByok ? routerBase : this.routerOverride;
-      this.userRouter = { baseUrl: routerBase, mock };
+      this.userRouter = { baseUrl: routerBase, mock, sponsored };
     } else {
       // A peer contributes its network definition, not its execution environment.
       // It always runs in this browser with the top caller's active router, even
@@ -223,8 +230,10 @@ export class Engine {
       const selected = selectPeerRouter(this.userRouter);
       routerBase = selected.baseUrl;
       mock = selected.mock;
+      sponsored = selected.sponsored;
     }
-    const llm = new LlmClient({ baseUrl: routerBase, apiKey: this.byokKey, trace: this.trace, mock });
+    // A sponsored router gets no visitor key, even when one is saved.
+    const llm = new LlmClient({ baseUrl: routerBase, apiKey: sponsored ? "" : this.byokKey, trace: this.trace, mock, sponsored });
     return { network, bundleUrl, integrity, llm, hoconUrl, validation };
   }
 
@@ -370,7 +379,8 @@ export class Engine {
       externalRunner: llm.baseUrl === "browser://mock" ? null : self.agentRunner,
       routerBaseUrl: llm.baseUrl,
       mock: llm.mock,
-      apiKey: self.byokKey,
+      sponsored: llm.sponsored,
+      apiKey: llm.sponsored ? "" : self.byokKey,
       // A partner network runs on the visitor's model, or on this site's front-agent model
       // when the visitor picked none, and within this site's step limit. So a partner
       // network cannot choose how much the visitor pays.

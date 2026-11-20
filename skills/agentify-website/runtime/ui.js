@@ -331,7 +331,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
 
   const net = engine.top?.network;
   const title = manifest?.networks?.[0]?.description || net?.name || "Agent network";
-  const needsByok = !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo");
+  const needsByok = !engine.mockLLM && !engine.sponsoredLLM && (!engine.byokKey || engine.byokKey === "demo");
   // The Connect button needs an https page (or this computer's own address) in its own tab.
   const canConnect = OpenRouterConnect.isAvailable();
   const setupMessage = canConnect
@@ -1099,6 +1099,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
   const inUseEl = root.querySelector("#ns-in-use");
   inUseEl.textContent = InUseLine.text({
     mock: engine.mockLLM,
+    sponsored: engine.sponsoredLLM,
     key: engine.byokKey,
     router: activeRouter,
     model: engine.modelOverride,
@@ -1295,7 +1296,7 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
     const key = keyEl.value.trim();
     const model = normalizeModelName(modelEl.value);
     modelEl.value = model;
-    if (requireActiveKey && !engine.mockLLM && (!engine.byokKey || engine.byokKey === "demo")) {
+    if (requireActiveKey && !engine.mockLLM && !engine.sponsoredLLM && (!engine.byokKey || engine.byokKey === "demo")) {
       const message = key
         ? "Your API key is ready. Select Save and start before sending a request."
         : setupMessage;

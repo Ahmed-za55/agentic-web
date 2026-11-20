@@ -52,7 +52,7 @@ export async function runAgentLangChain(ctx, agentName, userText, parentSpan, ch
     // A real (non-mock) router with no API key: refuse rather than forward the
     // placeholder "demo" to a live provider (which returns a confusing 401, e.g.
     // when a shared/reloaded URL keeps the proxy router but the per-tab key is gone).
-    if (!ctx.mock && (!ctx.apiKey || ctx.apiKey === "demo")) {
+    if (!ctx.mock && !ctx.sponsored && (!ctx.apiKey || ctx.apiKey === "demo")) {
       throw new Error(`An AI provider key is required for ${hostOf(ctx.routerBaseUrl) || "the configured provider"}. Open ⚙ AI model settings, paste your key, then select Save and start. Your key stays in this browser and is sent only to the configured provider.`);
     }
     const keySource = ctx.apiKey ? "local BYOK (not shown)" : "none";
