@@ -30,8 +30,8 @@ export class InUseLine {
    */
   static text(setup) {
     if (setup.mock) return "In use: the demo mock, no real model";
-    // A sponsored router is paid for by the site, so there is no key to show.
-    if (setup.sponsored) {
+    // A publisher-funded router is paid for by the site, so there is no key to show.
+    if (setup.publisherFunded) {
       return `In use: ${InUseLine.modelLabel(setup.model, setup.siteModel)} · paid for by this site, no key needed`;
     }
     const key = String(setup.key || "").trim();
