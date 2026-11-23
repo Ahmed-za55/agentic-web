@@ -18,7 +18,9 @@ The agentified site is a copy of the original site with these additions:
   agent-mcp.json              generated from the manifest; do not edit by hand
   .well-known/                generated discovery files (see "How others find the site")
   bridge/action-bridge.html   written by the build; other agent sites load the page in a hidden frame
-  bridge/agent-manifest.json  written by the build; the bridge's own manifest, with no action module
+  bridge/agent-manifest.json  written by the build; the bridge's own manifest, naming bridge-actions.js if the site has it
+  bridge/bridge-actions.js    optional: the reads, and any write, shared with other agent sites (templates/bridge/bridge-actions.js)
+  bridge/write-window.js      optional: a shared write, made in a window on this site (templates/bridge/write-window.js)
   runtime/                    copied unchanged from the skill's runtime/
   tests/                      templates/tests/, filled in for this site
 ```
@@ -40,7 +42,7 @@ editing the copy.
 | `networks[0].sample_queries` | Public metadata for people and other sites. The runtime UI does not show them. |
 | `brand` | The name in the chat header. |
 | `theme.primary` | Set inline as `--ns-primary` on the mount, so it overrides the CSS value. |
-| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. The template uses hosted Otari, `https://api.otari.ai/api/v1`, to match the model in `templates/network.hocon`. If you change one, change the other. `mock: false` for a real site. |
+| `llm_router.base_url`, `.byok_router`, `.mock` | Default router for BYOK. The template uses hosted Otari, `https://api.otari.ai/api/v1`, to match the model in `templates/network.hocon`. If you change one, change the other. `mock: false` for a real site. `publisher_funded: true` marks `base_url` as a default router the site pays for (spec §4, "Default inference"). The runtime calls it with no key and no `Authorization` header, and the panel says the site pays. When a visitor adds a key, chat switches to `byok_router`, and the visitor's key is never sent to `base_url`, by the chat or by the settings panel. Partner networks this site calls also run on `base_url`, so the site pays for their model calls too. Ignored when `mock` is true. |
 | `peer_policy`, `allowed_peers` | `"mode": "closed"`. List the origin of each partner site and MCP server in `allowed_peers`: the runtime refuses every other origin that this site's network asks for. A partner's network is checked against the partner's own `allowed_peers` (`runtime/engine.js`, `_assertAllowedPeer`), so a visitor here can also get a card for a site that a partner calls. |
 | `deployment.mode` | Must be `"static"`. |
 | `actions.version`, `.module`, `.bridge`, `.agentTools` | `1`, the actions module path, `"./bridge/action-bridge.html"` (the page other agent sites load, written by the build), and the action names that become `website_*` tools. |
