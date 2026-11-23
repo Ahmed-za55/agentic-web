@@ -336,7 +336,8 @@ stays static: the proxy is a separate service. In `agent-manifest.json`:
 The runtime then calls `base_url` with no key, and the first line of ⚙ AI model settings
 says the site pays. A visitor who adds their own key moves to `byok_router`, and their
 key is never sent to `base_url`. Keep `byok_router` a different URL from `base_url`,
-because the runtime sends a visitor's key to `byok_router`.
+because the runtime sends a visitor's key to `byok_router`. The build refuses a manifest
+where they match.
 
 The proxy must:
 
