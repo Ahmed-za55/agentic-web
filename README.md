@@ -282,8 +282,68 @@ See [Using Otari](docs/providers/otari.md) for the steps, and
 ## Testing
 
 > [!NOTE]
-> TODO
-Run the validation script to check your submission is compliant.
+> A validation script will be in this repo before the challenge deadline
+> ([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
+> Run it to check that your submission is compliant.
+
+Until then, three Node.js scripts in
+[`skills/agentify-website/scripts/`](skills/agentify-website/scripts/) test a site. They
+need Node.js 22 or newer.
+
+| Script | What it checks |
+| --- | --- |
+| `build_network.mjs --check` | Your own files, before you publish: the network parses and passes the runtime's validation, every agent can be reached, no TODO or placeholder is left, the manifest matches the network, partner calls would be allowed, and the published files are up to date. Without `--check`, it builds those files. |
+| `serve_site.mjs` | Nothing by itself. It serves your site locally with the headers a real host should send, such as CORS on the public agent files, so the other checks and other sites can call it. |
+| `check_partner.mjs` | A live site, the way a browser on another site sees it: each public file loads with the CORS header a browser needs, the network parses and passes validation, and the action bridge loads. It prints what that site's agents can reach, and what to add to your site to call it. Point it at your own site to see what partners see. |
+
+Each script prints `WARNING:` and `ERROR:` lines that say what to fix, and exits with
+code 1 when there is an error. `build_network.mjs` also checks the skill's own
+conventions, so a site built another way may get messages the spec does not require.
+`check_partner.mjs` reads only public files, so it works on any site.
+
+### Example: the Marrow Point sites
+
+From the repository root, check the harbor tours site's files:
+
+```shell
+node skills/agentify-website/scripts/build_network.mjs examples/harbor_tours_agentified/marrow_point_harbor_tours.hocon --manifest examples/harbor_tours_agentified/agent-manifest.json --check
+```
+
+It lists the network's agents, tools and partners, then ends with:
+
+```text
+OK: these files are up to date:
+  - examples/harbor_tours_agentified/marrow_point_harbor_tours.network.json
+  ...
+```
+
+Serve the three linked sites, each in its own terminal. They use three host names, so
+their cookies stay apart:
+
+```shell
+node skills/agentify-website/scripts/serve_site.mjs examples/guesthouse_agentified --port 8080 --open-as 127.0.0.1
+node skills/agentify-website/scripts/serve_site.mjs examples/harbor_tours_agentified --port 8081 --open-as localhost
+node skills/agentify-website/scripts/serve_site.mjs examples/marrow_point_pizza_agentified --host ::1 --port 8083
+```
+
+Then check that the harbor tours site can call the guesthouse:
+
+```shell
+node skills/agentify-website/scripts/check_partner.mjs http://127.0.0.1:8080/tidewhistle_guesthouse --origin http://localhost:8081
+```
+
+```text
+Read: http://127.0.0.1:8080/agent-manifest.json (200)
+Read: http://127.0.0.1:8080/tidewhistle_guesthouse.network.json (200)
+...
+Add to this site:
+  allowed_peers in agent-manifest.json: "http://127.0.0.1:8080"
+  tools of the calling agent: "http://127.0.0.1:8080/tidewhistle_guesthouse"
+  ...
+OK: http://127.0.0.1:8080/tidewhistle_guesthouse can be called from http://localhost:8081.
+```
+
+Leave out `--origin` to check a site as any other site would see it.
 
 ## Documentation
 
@@ -482,9 +542,9 @@ irreversible. See
 #### How do I check my site?
 A validation script will be in this repo before the challenge deadline
 ([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
-For a site built with the skill, `scripts/build_network.mjs --check` and
-`scripts/check_partner.mjs` already catch a lot. Community checkers such as Agent Atlas
-are on the [Agentic Websites](docs/agentic_websites.md) list.
+Until then, the skill's scripts already catch a lot: see [Testing](#testing).
+Community checkers such as Agent Atlas are on the
+[Agentic Websites](docs/agentic_websites.md) list.
 
 ### Connecting sites
 
