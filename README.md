@@ -211,8 +211,11 @@ An agent calls another site's network by its URL: the folder that holds that sit
 partner's origin in `allowed_peers` in your `agent-manifest.json`: unless `peer_policy`
 is `"open"`, the runtime refuses every other origin. Before anything is sent, the
 visitor agrees on a card. The partner's network then runs in the visitor's browser, on
-the visitor's own key. It gets none of the partner site's own functions, so it can say
-what that site offers and point to its page, but not give live availability or book.
+the visitor's own key. It gets only the functions the partner site shares with your site.
+A shared read, such as live availability, runs in a hidden frame on the partner's site.
+A shared write, such as a booking, opens the partner's own window, where the visitor
+confirms it. A partner that shares nothing can still say what it offers and point to its
+page.
 
 For a site agentified with the skill, follow
 [`references/linking.md`](skills/agentify-website/references/linking.md). The build
@@ -382,4 +385,148 @@ Discuss ideas for agentic web applications in the [Agentic Web Ideas](https://gi
 
 ## FAQ
 
-See the Frequently Asked Questions in [The Open Agentic Web](https://worldwideagenticweb.org).
+Short answers, with links to the docs that say more. See also the Frequently Asked
+Questions on [The Open Agentic Web](https://worldwideagenticweb.org).
+
+### The basics
+
+#### What is an open agentic website?
+A public website that publishes its own agent network as a JSON file, next to its pages,
+with a runtime that runs that network in the visitor's browser. The visitor chats with it
+and chooses the LLM and key. With the visitor's OK, one site's agents can call another
+site's agents. See [What](#what) and the
+[MVP specification](docs/worldwide_agentic_web_mvp_spec.md).
+
+#### Do I need a server?
+No. Any static host works. Serve the public agent files, such as `agent-manifest.json`
+and the `.network.json` file, with `Access-Control-Allow-Origin: *`, so other sites'
+browsers can read them. Use HTTPS in production. See
+[spec section 3.3](docs/worldwide_agentic_web_mvp_spec.md#33-minimum-public-files) and
+[Static hosting](skills/agentify-website/references/bundle_and_hosting.md#static-hosting).
+
+#### Which spec version does the challenge use?
+MVP Profile 0.2 or 0.3. They are the same apart from fixed links and typos
+([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
+
+#### Are my agents' instructions secret?
+No. The network file is public by design, like page source. Keep prices, permissions and
+anything confidential in your site's own code or on a server, and offer it through a site
+action or authenticated MCP. See
+[spec section 1.1](docs/worldwide_agentic_web_mvp_spec.md#11-intended-use-and-boundaries).
+
+#### Does the assistant keep working after the tab closes?
+No. The runtime lives as long as the page. Scheduled or background work needs a hosted
+runtime or another service
+([spec section 1.1](docs/worldwide_agentic_web_mvp_spec.md#11-intended-use-and-boundaries)).
+
+### Models and keys
+
+#### Who pays for the model calls?
+By default, the visitor, with their own key. A site can pay instead: it points its
+default router at a small proxy that adds the site's key, and sets
+`llm_router.publisher_funded`. Visitors then chat with no key. See
+[Paying for visitors' model calls](skills/agentify-website/references/bundle_and_hosting.md#paying-for-visitors-model-calls)
+and [spec section 4](docs/worldwide_agentic_web_mvp_spec.md#4-tenet-three-pluggable-inference).
+
+#### Which providers and models work?
+Any OpenAI-compatible provider that accepts calls from a browser, such as OpenAI,
+OpenRouter, hosted Otari and self-hosted LiteLLM. The examples use hosted Otari with
+`alibaba/qwen3.8-flash`. Pick a model that makes tool calls. See
+[LLM providers](docs/providers/providers.md) and [Using Otari](docs/providers/otari.md).
+
+#### Does the visitor have to copy and paste a key?
+No. In ⚙ AI model settings, **Connect with Otari** and **Connect with OpenRouter** sign
+the visitor in and save a key made for that site. They work on an https site, or on the
+visitor's own computer at `localhost`. See [Using Otari](docs/providers/otari.md#hosted-otari-otariai)
+and [OpenRouter](docs/providers/providers.md#openrouter).
+
+#### Where does the visitor's key go?
+Only to the provider they chose. It stays in their browser and never goes into URLs,
+prompts, action arguments, traces or requests to other sites. A partner site never gets
+it. See [spec section 4](docs/worldwide_agentic_web_mvp_spec.md#4-tenet-three-pluggable-inference).
+Other JavaScript on the same site can still read the key, so load few third-party scripts
+and send a strict Content Security Policy. Visitors should use a key with a spending
+limit.
+
+### Building a site
+
+#### How do I start?
+Three ways: follow the [Quickstart](docs/quickstart.md) to generate a network and test it
+with your own key, ask a coding agent to follow the
+[agentify-website skill](skills/agentify-website/SKILL.md) on a site you already have, or
+design a network in the hosted version of [Neuro SAN Studio](#cognizant-ai-labs-neuro-san).
+The skill needs Node.js 22 or newer. [`examples/guesthouse/`](examples/guesthouse/) and
+[`examples/guesthouse_agentified/`](examples/guesthouse_agentified/) show a site before
+and after.
+
+#### What if I can't change the site's code?
+The skill can build a companion assistant instead: a separate static site that answers
+from the public pages and links visitors to the real site to act. It can't see the
+visitor's session or book for them. See
+[Live URL mode](skills/agentify-website/references/live_url_mode.md).
+
+#### How does the assistant do things on the page, like book a room?
+The site registers its own functions as actions, each with a name, a description, an
+input schema and an effect. The skill's runtime turns the ones listed in
+`agent-manifest.json` under `actions.agentTools` into `website_<name>` tools the model
+can call. See [Site actions](skills/agentify-website/references/site_actions.md) and the
+[runtime README](skills/agentify-website/runtime/README.md).
+
+#### When does the visitor have to confirm?
+The site marks each action `read`, `write` or `irreversible`. Reads and undoable writes,
+such as filling a basket, run at once. An irreversible action, such as a booking, waits
+for the visitor to confirm. The model can't change these marks. When unsure, mark it
+irreversible. See
+[Choose the effect carefully](skills/agentify-website/references/site_actions.md#choose-the-effect-carefully).
+
+#### How do I check my site?
+A validation script will be in this repo before the challenge deadline
+([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
+For a site built with the skill, `scripts/build_network.mjs --check` and
+`scripts/check_partner.mjs` already catch a lot. Community checkers such as Agent Atlas
+are on the [Agentic Websites](docs/agentic_websites.md) list.
+
+### Connecting sites
+
+#### How does my agent call another site's agent?
+List the partner's network URL in the agent's `tools`, and the partner's origin in
+`allowed_peers`. The visitor agrees on a card before anything is sent. The partner's
+network then runs in the visitor's browser, on the visitor's model and key. See
+[Connect to other agent networks](#connect-to-other-agent-networks) and
+[How a call works](skills/agentify-website/references/linking.md#how-a-call-works).
+
+#### What does the partner site see?
+Only the request text your agent writes. Not the chat, not the key, and not private
+context (`sly_data`), which is denied across sites unless your network names a field.
+See [spec section 5](docs/worldwide_agentic_web_mvp_spec.md#5-cross-cutting-security-and-privacy-requirements).
+
+#### Can a partner use my site's functions?
+Only the ones you share, and only with the sites you name. A site shares actions in
+`bridge/bridge-actions.js`. A shared read runs in a hidden frame on your site, and a
+shared write opens your site's own window, where the visitor confirms it. Never share a
+write with `"*"`. See
+[Let other sites call this site](skills/agentify-website/references/linking.md#let-other-sites-call-this-site).
+
+#### How do I find other sites, and get mine listed?
+Start with the [Agentic Websites](docs/agentic_websites.md) list, and directories such as
+Agent Atlas and the [NANDA Index](#nandas-index-agent-registry). To be listed, open a pull
+request that adds a row to `docs/agentic_websites.md`.
+
+#### How does this relate to MCP, WebMCP and A2A?
+MCP is the spec's baseline for tools and data: an agent can call an MCP server, and the
+visitor approves a third-party server first. WebMCP integration is listed as future work
+([spec section 7](docs/worldwide_agentic_web_mvp_spec.md#7-extensions-and-community-opportunities)),
+and [issue #17](https://github.com/cognizant-ai-labs/agentic-web/issues/17) tracks it for
+sites built with the skill. A site may also publish an A2A Agent Card
+([spec section 3.3](docs/worldwide_agentic_web_mvp_spec.md#33-minimum-public-files)).
+
+### Help
+
+#### How do I get Otari credits, or help with Otari?
+See [Mozilla's Otari](#mozillas-otari): the first 100 hackathon registrants get free
+credits, and the Otari developers answer in `#otari-ai` on the Mozilla OSAI Discord.
+
+#### Where do I ask a question or report a bug?
+Ask in [Discussions](https://github.com/cognizant-ai-labs/agentic-web/discussions), share
+ideas in the [Ideas](https://github.com/cognizant-ai-labs/agentic-web/discussions/categories/ideas)
+category, and report bugs in [Issues](https://github.com/cognizant-ai-labs/agentic-web/issues).
