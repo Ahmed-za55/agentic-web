@@ -282,9 +282,8 @@ See [Using Otari](docs/providers/otari.md) for the steps, and
 ## Testing
 
 > [!NOTE]
-> A validation script will be in this repo before the challenge deadline
-> ([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
-> Run it to check that your submission is compliant.
+> A validation script will be in this repo before the challenge deadline. Run it to
+> check that your submission is compliant.
 
 Until then, three Node.js scripts in
 [`skills/agentify-website/scripts/`](skills/agentify-website/scripts/) test a site. They
@@ -540,9 +539,8 @@ irreversible. See
 [Choose the effect carefully](skills/agentify-website/references/site_actions.md#choose-the-effect-carefully).
 
 #### How do I check my site?
-A validation script will be in this repo before the challenge deadline
-([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
-Until then, the skill's scripts already catch a lot: see [Testing](#testing).
+A validation script will be in this repo before the challenge deadline. Until then, the
+skill's scripts already catch a lot: see [Testing](#testing).
 Community checkers such as Agent Atlas are on the
 [Agentic Websites](docs/agentic_websites.md) list.
 
