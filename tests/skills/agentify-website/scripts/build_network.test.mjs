@@ -822,6 +822,50 @@ class BuildNetworkTest {
       }
     }
   }
+
+  /**
+   * Give the fixture a publisher-funded router and build it.
+   *
+   * :param byokRouter: The manifest's byok_router.
+   * :return: The exit code and the printed output.
+   */
+  static async buildWithFundedRouter(byokRouter) {
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      const manifest = await BuildNetworkTest.readManifest(folder);
+      manifest.llm_router = {
+        base_url: "https://proxy.example/v1",
+        publisher_funded: true,
+        mock: false,
+        byok_router: byokRouter,
+      };
+      await BuildNetworkTest.writeManifest(folder, manifest);
+      return BuildNetworkTest.build(folder, []);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+    }
+  }
+
+  /**
+   * A publisher-funded base_url that is also byok_router is an error, even written with a
+   * trailing slash, because a visitor's key would go to the site's proxy.
+   */
+  static async testFundedRouterAsByokRouterIsAnError() {
+    const built = await BuildNetworkTest.buildWithFundedRouter("https://proxy.example/v1/");
+    assert.equal(built.code, 1, built.out);
+    assert.deepEqual(BuildNetworkTest.findings(built.out), [
+      "ERROR: Manifest: llm_router.byok_router must be a different URL from base_url when publisher_funded is true. Otherwise a visitor's own key goes to the site's proxy.",
+    ]);
+  }
+
+  /**
+   * A publisher-funded router with its own byok_router builds with no findings.
+   */
+  static async testFundedRouterWithOwnByokRouter() {
+    const built = await BuildNetworkTest.buildWithFundedRouter("https://api.otari.ai/api/v1");
+    assert.equal(built.code, 0, built.out);
+    assert.deepEqual(BuildNetworkTest.findings(built.out), []);
+  }
 }
 
 test("the clean fixture builds with no findings and passes --check", BuildNetworkTest.testCleanSite);
@@ -854,3 +898,5 @@ test("a partner named like the agent's own tool is an error, in either order", B
 test("a read action with a hyphen fills the partner rule with no warning", BuildNetworkTest.testHyphenatedReadAction);
 test("a website tool that no instructions name builds with no warning", BuildNetworkTest.testUnnamedWebsiteToolIsFine);
 test("the instruction budget is 5,000 characters", BuildNetworkTest.testInstructionBudget);
+test("a publisher-funded base_url used as byok_router is an error", BuildNetworkTest.testFundedRouterAsByokRouterIsAnError);
+test("a publisher-funded router with its own byok_router builds clean", BuildNetworkTest.testFundedRouterWithOwnByokRouter);
