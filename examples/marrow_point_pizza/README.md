@@ -34,7 +34,10 @@ page is refreshed.
 ## Files
 
 - `index.html`: semantic page structure, cart and checkout form.
-- `styles.css`: small responsive layout, with no external fonts or assets.
+- `styles.css`: small responsive layout. It loads nothing from other servers.
+- `fonts/`: the Fredoka and Nunito fonts, with their SIL Open Font License files.
+- `img/`: the pictures on the menu.
+- `favicon.svg`: the site icon, also shown before the restaurant's name.
 - `script.js`: menu data, cart state, rendering and demo checkout.
 
 The `menu` array in `script.js` contains stable item IDs,

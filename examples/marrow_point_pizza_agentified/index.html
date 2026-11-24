@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Little Oven Pizza in Marrow Point: pizzas for pickup or delivery, with the menu, opening hours, a demo checkout and an assistant.">
     <title>Little Oven Pizza · Marrow Point</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="styles.css">
     <script type="module" src="script.js"></script>
     <script type="module" src="site.js"></script>
@@ -78,11 +79,14 @@
         <p id="assistant-status" role="status">Connecting the assistant… If this message stays, the assistant could not load. You can still use the page directly.</p>
         <div id="agent-app">
           <div data-ns-slot="header"></div>
-          <div class="assistant-panels">
-            <div data-ns-slot="chat"></div>
+          <div class="assistant-tools">
             <div data-ns-slot="agents"></div>
+            <details class="assistant-settings">
+              <summary>⚙ AI model settings</summary>
+              <div data-ns-slot="settings"></div>
+            </details>
           </div>
-          <div data-ns-slot="settings"></div>
+          <div data-ns-slot="chat"></div>
         </div>
       </section>
     </main>
