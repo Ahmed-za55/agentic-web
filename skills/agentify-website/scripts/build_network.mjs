@@ -483,7 +483,10 @@ class NetworkBuilder {
    */
   async loadTemplateRules(runtime) {
     try {
-      const template = runtime.parseHocon(await readFile(NetworkBuilder.TEMPLATE, "utf8"));
+      // Use LF, as run() does for the site's HOCON. On a Windows checkout both files may
+      // have CRLF, and the rules must match the site's text.
+      const text = (await readFile(NetworkBuilder.TEMPLATE, "utf8")).replace(/\r\n/g, "\n");
+      const template = runtime.parseHocon(text);
       return (template.commondefs || {}).replacement_strings || null;
     } catch (error) {
       this.warnings.push(`Could not read the template's rules from ${fileURLToPath(NetworkBuilder.TEMPLATE)}: ${error.message}`);
