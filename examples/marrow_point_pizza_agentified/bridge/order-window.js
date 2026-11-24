@@ -26,15 +26,16 @@ export class OrderWindow {
    * Layout for this small window, on top of the site's stylesheet.
    */
   static STYLE = `
-.order-window header { padding: 12px 18px; }
+.order-window header { flex-direction: row; align-items: center; padding: 12px 18px; }
 .order-window main { max-width: 560px; padding-top: 4px; }
 .order-window h1 { font-size: 1.8rem; margin: 4px 0 6px; }
 .order-window .cart { margin-top: 16px; padding: 16px 18px; }
 .order-window .cart-items li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .order-window .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
-.order-window .secondary { background: white; color: #a63220; }
-.order-window .field-error { color: #a63220; font-weight: 600; margin: 6px 0 0; }
-.order-window .number { font-family: Georgia, serif; font-size: 1.6rem; font-weight: 700; margin: 0 0 8px; }
+.order-window .secondary { color: var(--ink); border-color: var(--line-strong); background: var(--surface); }
+.order-window .secondary:hover { background: var(--paper-deep); }
+.order-window .field-error { color: var(--error); font-weight: 700; margin: 6px 0 0; }
+.order-window .number { font-family: var(--display); font-size: 1.6rem; font-weight: 600; margin: 0 0 8px; }
 `;
 
   /**
