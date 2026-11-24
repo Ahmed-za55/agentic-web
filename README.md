@@ -457,11 +457,17 @@ site's agents. See [What](#what) and the
 [MVP specification](docs/worldwide_agentic_web_mvp_spec.md).
 
 #### Do I need a server?
-No. Any static host works. Serve the public agent files, such as `agent-manifest.json`
-and the `.network.json` file, with `Access-Control-Allow-Origin: *`, so other sites'
-browsers can read them. Use HTTPS in production. See
+No, but nothing stops you from using one. Any static host works. Serve the public agent
+files, such as `agent-manifest.json` and the `.network.json` file, with
+`Access-Control-Allow-Origin: *`, so other sites' browsers can read them. Use HTTPS in
+production. See
 [spec section 3.3](docs/worldwide_agentic_web_mvp_spec.md#33-minimum-public-files) and
 [Static hosting](skills/agentify-website/references/bundle_and_hosting.md#static-hosting).
+
+A site can also run its own server next to those files, for example for bookings and
+sign-in, for an MCP server its agents call, or for a proxy that pays for visitors' model
+calls (see
+[Paying for visitors' model calls](skills/agentify-website/references/bundle_and_hosting.md#paying-for-visitors-model-calls)).
 
 #### Which spec version does the challenge use?
 MVP Profile 0.2 or 0.3. They are the same apart from fixed links and typos.
