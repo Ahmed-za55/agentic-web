@@ -20,8 +20,10 @@ import { WriteWindow } from "./write-window.js";
 class BridgeActions {
   /**
    * The sites allowed to call these reads, as exact origins with the port.
-   * TODO: list the sites that call this one. "*" shares a read with every site on the web:
-   * use it only for facts the public page already shows, such as times, prices or a menu.
+   * TODO: list the sites that call this one. "*" shares a read with every site on the web.
+   * Ask the site owner, for each read, whether it returns only what the public page shows,
+   * such as times, prices or a menu. If it does, set that action's callerOrigins to ["*"];
+   * if not, or if the owner is unsure, keep these exact origins. Writes never use "*".
    */
   static CALLERS = [
     "https://partner.example",
