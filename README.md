@@ -464,8 +464,7 @@ browsers can read them. Use HTTPS in production. See
 [Static hosting](skills/agentify-website/references/bundle_and_hosting.md#static-hosting).
 
 #### Which spec version does the challenge use?
-MVP Profile 0.2 or 0.3. They are the same apart from fixed links and typos
-([discussion #54](https://github.com/cognizant-ai-labs/agentic-web/discussions/54)).
+MVP Profile 0.2 or 0.3. They are the same apart from fixed links and typos.
 
 #### Are my agents' instructions secret?
 No. The network file is public by design, like page source. Keep prices, permissions and
@@ -574,8 +573,7 @@ request that adds a row to `docs/agentic_websites.md`.
 MCP is the spec's baseline for tools and data: an agent can call an MCP server, and the
 visitor approves a third-party server first. WebMCP integration is listed as future work
 ([spec section 7](docs/worldwide_agentic_web_mvp_spec.md#7-extensions-and-community-opportunities)),
-and [issue #17](https://github.com/cognizant-ai-labs/agentic-web/issues/17) tracks it for
-sites built with the skill. A site may also publish an A2A Agent Card
+and sites built with the skill do not support it yet. A site may also publish an A2A Agent Card
 ([spec section 3.3](docs/worldwide_agentic_web_mvp_spec.md#33-minimum-public-files)).
 
 ### Help
