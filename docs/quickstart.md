@@ -129,4 +129,10 @@ order, the browser asks you to confirm.
 
 Now connect your site to other agentic websites: see
 [Connect to other agent networks](../README.md#connect-to-other-agent-networks).
+
+The runtime the skill copies into your site is an example. Once you know how it works,
+change your site's copy as you like. We fix bugs and conflicts with the
+[spec](worldwide_agentic_web_mvp_spec.md) in the skill's runtime. To share a new feature
+with other sites, open a pull request.
+
 Happy hacking!
