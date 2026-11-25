@@ -478,6 +478,26 @@ class AgentifiedSiteTest {
   }
 
   /**
+   * Every write the bridge shares lists the exact sites that may make it, never "*".
+   * "*" would let any site on the web open this site's window with a change it chose
+   * ("Share writes" in references/linking.md). The runtime itself accepts "*" for any action.
+   */
+  static async testSharedWritesListExactCallers() {
+    const shared = await AgentifiedSiteTest.bridgeActions();
+    for (const [name, definition] of shared) {
+      // The runtime's defaults: no effect means a write, and no availability means local-only.
+      const effect = definition.effect || "write";
+      const availability = definition.availability || "local-only";
+      if (effect === "read" || availability === "local-only") {
+        continue;
+      }
+      const callers = definition.callerOrigins || [];
+      assert.ok(callers.length > 0, `${name} is shared through the bridge but lists no callers.`);
+      assert.ok(!callers.includes("*"), `${name} has effect "${effect}" but is shared with every site ("*"). List the exact sites that may make it.`);
+    }
+  }
+
+  /**
    * The front agent can call the read tool and gets a succeeded receipt back.
    *
    * :param t: The test context from node:test.
@@ -904,6 +924,7 @@ class AgentifiedSiteTest {
 
 test("network is valid, has no demo mode and keeps its grounding and partner rules", AgentifiedSiteTest.testNetworkIsValid);
 test("agentTools are local-only page actions or shared bridge actions, with no TODO left", AgentifiedSiteTest.testActionsMatchManifest);
+test("a shared write lists exact callers, never \"*\"", AgentifiedSiteTest.testSharedWritesListExactCallers);
 test("front agent reads page state through a website tool", AgentifiedSiteTest.testReadActionRunsAsTool);
 test("the write tool changes the state and refuses an unknown ID", AgentifiedSiteTest.testWriteActionChangesState);
 test("irreversible action needs confirmation and a decline changes nothing", AgentifiedSiteTest.testIrreversibleActionNeedsConfirmation);
