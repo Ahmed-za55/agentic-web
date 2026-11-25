@@ -129,8 +129,11 @@ Added files:
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
 
-Do not edit or replace these files for one site. This copy is for use until nsdeploy's
-own runtime offers these tools and partner limits.
+This runtime is an example. The skill copies it unchanged, and a coding agent following
+the skill does not edit it. After that, a site's copy is the site owner's to change. Bugs
+and conflicts with the spec are fixed in the skill's copy. To share a new feature with
+other sites, open a pull request. This copy is for use until nsdeploy's own runtime
+offers these tools and partner limits.
 
 nsdeploy plans to move to a runtime built on the neuro-san TS package (nsdeploy PR #10).
 That runtime has no `website_*` tools yet. Before a site switches to it, move the edits
