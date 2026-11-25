@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability, please report it by emailing labgithub@cognizant.com.
+If you discover a security vulnerability, please report it privately to maintainers here: https://github.com/cognizant-ai-labs/agentic-web/security/advisories
 
 **Please do not report security vulnerabilities through public GitHub issues.**
 
