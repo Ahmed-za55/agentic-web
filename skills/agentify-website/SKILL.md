@@ -47,8 +47,8 @@ For a public URL without source, follow `references/live_url_mode.md` first.
 the effect of each action, the "not supported" list, and each partner site it will ask,
 with what it asks and what it can answer from here) and ask them to confirm. For each
 read the site will share with other sites, also ask whether it returns only what the
-public page shows: if so, suggest `"*"` in its `callerOrigins`, and if not, keep exact
-origins ("Share reads" in `references/linking.md`). Pay
+public page shows: if so, suggest `"*"` in its `callerOrigins`, and if not, or with no
+answer, keep exact origins ("Share reads" in `references/linking.md`). Pay
 attention to which actions are `irreversible`, since `read` and `write` tools run without
 a dialog. Skip the checkpoint only if the user said to proceed without asking.
 

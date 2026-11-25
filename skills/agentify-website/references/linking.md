@@ -102,7 +102,8 @@ Do this for every site.
      asks you. The code cannot show whether a read returns only what the public page
      shows, so ask the site owner, for each read, at the checkpoint. If it returns only
      facts the public page already shows, such as times, prices or a menu, suggest
-     `"*"`. If not, or if the owner is unsure, keep the exact origins;
+     `"*"`. If not, if the owner is unsure, or if there is no answer (for example, the
+     user skipped the checkpoint), keep the exact origins;
    - keep its name in the manifest's `actions.agentTools`: a partner's agents get only
      the actions listed there;
    - read nothing from the page: the bridge frame has none. Use the site's data and
