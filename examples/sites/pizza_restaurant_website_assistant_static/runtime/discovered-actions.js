@@ -43,7 +43,9 @@ async function formRequest(request, args, signal) {
   const doc = new DOMParser().parseFromString(await read(response, 2_000_000), "text/html");
   const source = doc.forms[request.index];
   if (!source || await formFingerprint(source) !== request.fingerprint) throw new Error("Source form changed. Rebuild with --action-refresh and review it. No submission sent.");
-  const form = document.importNode(source, true);
+  // Fill a copy that stays in the parsed page, where nothing loads or runs. A copy in
+  // the live page would load the form's images and run their event handlers.
+  const form = source.cloneNode(true);
   for (const node of form.querySelectorAll("input,textarea,select")) {
     if (!node.name || node.disabled) continue;
     const value = args[node.name];

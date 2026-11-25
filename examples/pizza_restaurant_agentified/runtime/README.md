@@ -83,6 +83,8 @@ Edited files. Each one has a line near its top saying that it was changed:
   pass what they write as HTML, parse as HTML or load as a script through
   `trusted-types.js`, so the chat works under `require-trusted-types-for 'script'`. `ui.js`
   also escapes the provider links, the theme's logo address and the log's event names.
+- `discovered-actions.js` fills its copy of a source page's form inside the parsed page,
+  not the live page, so nothing in the form loads or runs.
 
 Added files:
 
@@ -100,8 +102,9 @@ Added files:
   model and the last four characters of the key the chat uses.
 - `trusted-types.js` holds the runtime's one Trusted Types policy, `agentify-website`. It
   returns each string unchanged. That is safe because the runtime escapes every value it
-  puts in its own HTML, cleans a model's HTML with `renderSafeHtml`, only reads the pages
-  it parses with `DOMParser`, and loads no script but its own sandbox worker.
+  puts in its own HTML, cleans a model's HTML with `renderSafeHtml`, keeps the pages it
+  parses with `DOMParser` out of the live page, and loads no script but its own sandbox
+  worker.
 
 This copy, in the pizza example, has one more change that the skill's copy does not have
 yet. It is the pizza example's CRUSE fix (commit `3119a8d`). `runner.js` documents each
