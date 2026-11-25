@@ -39,6 +39,32 @@ class BuildNetworkTest {
   static UNUSED_PEER = "WARNING: Manifest: allowed_peers lists https://tours.example, but no agent calls a network or MCP server there.";
 
   /**
+   * The build script and the templates it reads, relative to the skill folder.
+   */
+  static SKILL_FILES = [
+    path.join("scripts", "build_network.mjs"),
+    path.join("templates", "network.hocon"),
+    path.join("templates", "bridge", "action-bridge.html"),
+  ];
+
+  /**
+   * The fixture's source files, which git checks out with the platform's line endings.
+   */
+  static SOURCE_FILES = ["seaside_desk.hocon", "agent-manifest.json"];
+
+  /**
+   * The files a build of the fixture writes, relative to the site folder.
+   */
+  static BUILT_FILES = [
+    "seaside_desk.network.json",
+    "agent-mcp.json",
+    path.join(".well-known", "nsdeploy.json"),
+    path.join(".well-known", "nsdeploy-agent.json"),
+    path.join("bridge", "action-bridge.html"),
+    path.join("bridge", "agent-manifest.json"),
+  ];
+
+  /**
    * Copy the fixture site to a new temp folder.
    *
    * :return: The temp folder.
@@ -62,6 +88,33 @@ class BuildNetworkTest {
   }
 
   /**
+   * Copy a file with CRLF line endings, as a Windows checkout with core.autocrlf=true has.
+   *
+   * :param from: The file to copy.
+   * :param to: The new file, which may be the same file. Its folder must exist.
+   */
+  static async copyAsCrlf(from, to) {
+    const text = await readFile(from, "utf8");
+    await writeFile(to, text.replace(/\r?\n/g, "\r\n"));
+  }
+
+  /**
+   * Copy the build script and its templates to a new temp skill folder, with CRLF line
+   * endings. The script reads the templates next to it, so the copy reads the CRLF ones.
+   *
+   * :return: The temp skill folder.
+   */
+  static async copySkillAsCrlf() {
+    const folder = await mkdtemp(path.join(os.tmpdir(), "crlf-skill-"));
+    for (const file of BuildNetworkTest.SKILL_FILES) {
+      const to = path.join(folder, file);
+      await mkdir(path.dirname(to), { recursive: true });
+      await BuildNetworkTest.copyAsCrlf(path.join(BuildNetworkTest.SKILL, file), to);
+    }
+    return folder;
+  }
+
+  /**
    * Run build_network.mjs on a site copy with the skill's runtime.
    *
    * :param folder: The site copy.
@@ -69,8 +122,20 @@ class BuildNetworkTest {
    * :return: The exit code and the printed output.
    */
   static build(folder, extra) {
+    return BuildNetworkTest.buildWith(path.join(BuildNetworkTest.SKILL, "scripts", "build_network.mjs"), folder, extra);
+  }
+
+  /**
+   * Run a given copy of build_network.mjs on a site copy with the skill's runtime.
+   *
+   * :param script: The build script to run.
+   * :param folder: The site copy.
+   * :param extra: More arguments, such as ["--check"].
+   * :return: The exit code and the printed output.
+   */
+  static buildWith(script, folder, extra) {
     const args = [
-      path.join(BuildNetworkTest.SKILL, "scripts", "build_network.mjs"),
+      script,
       path.join(folder, "seaside_desk.hocon"),
       "--manifest",
       path.join(folder, "agent-manifest.json"),
@@ -747,6 +812,37 @@ class BuildNetworkTest {
   }
 
   /**
+   * On a Windows checkout the site, the script, its templates and the built files may all
+   * have CRLF. The site builds LF files with no findings, and passes --check.
+   */
+  static async testCrlfCheckout() {
+    const skill = await BuildNetworkTest.copySkillAsCrlf();
+    const folder = await BuildNetworkTest.copyFixture();
+    try {
+      for (const name of BuildNetworkTest.SOURCE_FILES) {
+        await BuildNetworkTest.copyAsCrlf(path.join(folder, name), path.join(folder, name));
+      }
+      const script = path.join(skill, "scripts", "build_network.mjs");
+      const built = BuildNetworkTest.buildWith(script, folder, []);
+      assert.equal(built.code, 0, built.out);
+      assert.deepEqual(BuildNetworkTest.findings(built.out), []);
+      for (const name of BuildNetworkTest.BUILT_FILES) {
+        const file = path.join(folder, name);
+        assert.ok(!(await readFile(file, "utf8")).includes("\r"), `${file} has a CR.`);
+        // Git would check the committed file out with CRLF too.
+        await BuildNetworkTest.copyAsCrlf(file, file);
+      }
+      const checked = BuildNetworkTest.buildWith(script, folder, ["--check"]);
+      assert.equal(checked.code, 0, checked.out);
+      assert.deepEqual(BuildNetworkTest.findings(checked.out), []);
+      assert.ok(checked.out.includes("OK: these files are up to date:"), checked.out);
+    } finally {
+      await BuildNetworkTest.remove(folder);
+      await BuildNetworkTest.remove(skill);
+    }
+  }
+
+  /**
    * A partner rule with a sentence dropped warns, though the phrase the other checks look
    * for is still there.
    */
@@ -896,6 +992,7 @@ test("two partners that become one tool name are an error", BuildNetworkTest.tes
 test("a partner listed twice is an error", BuildNetworkTest.testDoubledPartnerIsAnError);
 test("a partner named like the agent's own tool is an error, in either order", BuildNetworkTest.testPartnerNamedLikeOwnAgentIsAnError);
 test("a read action with a hyphen fills the partner rule with no warning", BuildNetworkTest.testHyphenatedReadAction);
+test("a CRLF checkout builds and passes --check with no findings", BuildNetworkTest.testCrlfCheckout);
 test("a website tool that no instructions name builds with no warning", BuildNetworkTest.testUnnamedWebsiteToolIsFine);
 test("the instruction budget is 5,000 characters", BuildNetworkTest.testInstructionBudget);
 test("a publisher-funded base_url used as byok_router is an error", BuildNetworkTest.testFundedRouterAsByokRouterIsAnError);
