@@ -3,8 +3,9 @@
 //
 // The policy returns each string unchanged. That is safe because every value the runtime
 // puts in its own HTML goes through escapeHtml, a model's HTML goes only through
-// renderSafeHtml (cruse-render.js), pages parsed with DOMParser are only read, and the only
-// script URL is the runtime's own sandbox worker. Keep it that way when changing a template.
+// renderSafeHtml (cruse-render.js), pages parsed with DOMParser stay out of the live
+// page, and the only script URL is the runtime's own sandbox worker. Keep it that way
+// when changing a template.
 
 let policy;
 
