@@ -1,7 +1,7 @@
 # LLM providers
 
-An open agentic website like one generated with `nsdeploy` can talk to its LLM through the
-OpenAI Chat Completions API. It sends
+An open agentic website, such as one built with the agentify-website skill, can talk to its
+LLM through the OpenAI Chat Completions API. It sends
 `POST <router>/chat/completions` with your key as `Authorization: Bearer <key>`, and it
 reads `GET <router>/models` to check the model name.
 It requires the provider to allow browser calls (CORS).
@@ -21,10 +21,13 @@ If Anthropic refuses browser calls from your site, use OpenRouter or LiteLLM for
 
 ## Connecting a site to a provider
 
-**With a static bundle** like the one generated with `nsdeploy`,
-the browser calls the provider itself. Build with
-`--static-bundle --upstream <provider URL>`, or in the `⚙ AI model settings` panel, set
-Provider URL under `Advanced settings (optional)` to the provider's URL. This only works for providers that allow browser calls (CORS).
+**With a static site**, such as one built with the agentify-website skill, the browser
+calls the provider itself. Set the site's default router in `agent-manifest.json`
+(`llm_router.base_url` and `llm_router.byok_router`, see
+[The manifest](../../skills/agentify-website/references/bundle_and_hosting.md#the-manifest)),
+or in the `⚙ AI model settings` panel, set Provider URL under
+`Advanced settings (optional)` to the provider's URL. An empty Provider URL means the
+site's default router. This only works for providers that allow browser calls (CORS).
 
 Things to know for every provider:
 
@@ -34,13 +37,15 @@ Things to know for every provider:
 - **Pick a model that makes tool calls.** The front agent hands work to other agents
   through tool calls. A model that answers in plain text instead won't delegate.
 - **One harmless console error.** With the router set straight to a cloud provider, the
-  console shows a CORS error for `<provider origin>/agent-manifest.json`. nsdeploy checks
+  console shows a CORS error for `<provider origin>/agent-manifest.json`. The runtime checks
   that address, ignores the failure and carries on.
 - **Limit your key.** Use a key with a spending limit, and consider revoking it when done.
 
 ## OpenAI
 
-- This is nsdeploy's default `--upstream`, so it can be left out when you build the bundle.
+- To make it the site's default, set `llm_router.base_url` and `llm_router.byok_router` in
+  `agent-manifest.json` to `https://api.openai.com/v1`, and the network's
+  `llm_config.model_name` to an OpenAI model.
 - OpenAI allows browser calls, so static bundles work.
 - Model IDs look like `gpt-4.1-mini`. The model check uses OpenAI's model list.
 - Some newer OpenAI models limit tool calls on Chat Completions. Check OpenAI's docs
@@ -83,10 +88,10 @@ The site owner registers nothing. Things to know:
 - Anthropic's OpenAI-compatible endpoint is `https://api.anthropic.com/v1`. It accepts
   your Anthropic key as a Bearer token, and tool calls work.
 - **Newer sites only.** Anthropic allows browser calls only when the request carries the
-  header `anthropic-dangerous-direct-browser-access: true`. Sites generated with
-  `nsdeploy` since November 11, 2026 send it, so the browser can call Anthropic with no
-  router or gateway in between. The examples in this repo send it too. Older sites don't,
-  so generate an older site again to get it.
+  header `anthropic-dangerous-direct-browser-access: true`. The runtime sends it since
+  November 11, 2026, so the browser can call Anthropic with no router or gateway in
+  between. Sites built with the agentify-website skill, including the examples in this
+  repo, send it. Older sites don't, so update an older site's runtime to get it.
 - **Your organization must allow it.** Some Anthropic organizations refuse browser calls.
   The chat then shows
   `LLM HTTP 401: ... CORS requests are not allowed for this Organization because of its settings`.
@@ -151,7 +156,7 @@ is needed. It's a quick way to try a site locally.
    ollama pull gemma4:e4b
    ```
 1. Serve the site from `127.0.0.1` or `localhost`, as in the
-   [Quickstart](../quickstart.md#manually-generate-a-website-bundle).
+   [Quickstart](../quickstart.md#build-it-into-your-website-with-the-agentify-website-skill).
 1. In the `⚙ AI model settings` panel, set:
    - API key: any text, such as `ollama`. Ollama ignores it, but the site won't send a
      request with an empty key.

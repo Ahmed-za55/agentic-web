@@ -183,9 +183,9 @@ inventory: questions the data answers, a state change, an operation that ends in
 confirmation, and one request the site cannot do, to show the agent declining honestly.
 Never list features the site does not have. A query for a partner site asks only what
 the partner can answer from here, such as "Is there a good place to eat nearby?", not
-free tables or prices ("Site tools" in `linking.md`). The generated pizza network in the
-agentic-web repository (`examples/pizza_restaurant_website_assistant.hocon`) asks to
-"apply code FAMILY20" and about "order #48219", which are examples of this mistake.
+free tables or prices ("Site tools" in `linking.md`). For example, a network generated
+for a pizza site with no coupons or order tracking asked to "apply code FAMILY20" and
+about "order #48219". Both are this mistake.
 
 Make each query work on its own, as the first message in a new chat, because anyone may
 try any one first. Do not refer back to another query, as "Book that" does. If a query
