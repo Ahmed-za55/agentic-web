@@ -2,7 +2,7 @@
 
 A small pizza restaurant website with a menu, cart and checkout, at 9 Ropewalk in
 Marrow Point, the same town as `examples/guesthouse` and `examples/harbor_tours`.
-It is `examples/pizza_restaurant` with an address, opening hours and a note on its
+The page also has the restaurant's address, opening hours and a note on its
 neighbors, Tidewhistle Guesthouse and Marrow Point Harbor Tours.
 It uses plain HTML, CSS and JavaScript with no dependencies or build step.
 

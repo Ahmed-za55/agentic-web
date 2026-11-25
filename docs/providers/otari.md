@@ -6,7 +6,7 @@ you can also run one yourself. For other providers, see [LLM providers](provider
 
 Both work from a static bundle:
 
-| Router | Static bundle (`--static-bundle`) |
+| Router | Static site |
 |---|---|
 | Hosted Otari (`otari.ai`) | Works, but some models fail on every request. See [Hosted Otari](#hosted-otari-otariai). |
 | Self-hosted Otari | Works, if Otari allows the site's origin |
@@ -17,12 +17,14 @@ In the `⚙ AI model settings` panel, the `API key` field and the `Model` and `P
 fields under `Advanced settings (optional)` decide where LLM requests go. The browser
 sends each request to the Provider URL.
 
-**Static bundle.** `nsdeploy`'s `--static-bundle` builds plain files with no server and no relay.
-The browser calls the router itself, so the router must allow browser calls (CORS).
-An empty Provider URL means the `--upstream` URL given at build time.
+**Static site.** A site built with the agentify-website skill is plain files with no server
+and no relay. The browser calls the router itself, so the router must allow browser calls
+(CORS). An empty Provider URL means the site's default router in `agent-manifest.json`:
+`llm_router.base_url`, or `llm_router.byok_router` once a key is set.
 
-Hosted Otari allows browser calls, which is why the static bundle in the
-[Quickstart](../quickstart.md#manually-generate-a-website-bundle) uses it by default.
+Hosted Otari allows browser calls, which is why the site the
+[Quickstart](../quickstart.md#build-it-into-your-website-with-the-agentify-website-skill)
+builds uses it by default.
 OpenAI allows them too.
 
 ## Hosted Otari (otari.ai)
@@ -156,8 +158,8 @@ api_keys:
   - To allow only specific sites, list their exact origins instead: scheme, host and
     port, with no path. `http://localhost:8080` and `http://127.0.0.1:8080` are
     different origins.
-  - The [Quickstart](../quickstart.md#manually-generate-a-website-bundle) serves its
-    bundle at `http://127.0.0.1:8080`.
+  - The [Quickstart](../quickstart.md#build-it-into-your-website-with-the-agentify-website-skill)
+    serves its site at `http://127.0.0.1:8080`.
 
 ### 4. Start Otari
 

@@ -78,117 +78,97 @@ The LLM provider, model and key used to answer these questions are chosen by the
 
 ## Quickstart
 
-See the [Quickstart guide](docs/quickstart.md) to generate an agent network, build a website bundle, and test it with your own LLM provider API key.
+See the [Quickstart guide](docs/quickstart.md) to design an agent network in Neuro SAN Studio, build it into your website with the agentify-website skill, and test it with your own LLM provider API key.
 
 ## Agentifying an existing website
 
 ### Existing website
 
-Start with the [simple pizza restaurant website](examples/pizza_restaurant/).
-It is a standalone HTML, CSS and JavaScript example with a menu (including
-ingredients and dietary information), a cart, and a demo pickup or delivery
-checkout. It has no dependencies, backend or agent integration yet.
+Start with the [Little Oven Pizza website](examples/marrow_point_pizza/), a small
+restaurant in Marrow Point, the made-up town of the other examples. It is a standalone
+HTML, CSS and JavaScript site with a menu (including ingredients, dietary labels and
+allergens), a cart, a demo pickup or delivery checkout, and its address and opening
+hours. It has no dependencies, backend or agent integration yet.
 
 Run it from the repository root:
 
 ```shell
-python -m http.server 8080 --directory ./examples/pizza_restaurant
+python -m http.server 8080 --directory ./examples/marrow_point_pizza
 ```
 
 Then open http://127.0.0.1:8080/. Add pizzas to the cart, adjust quantities,
 choose pickup or delivery, and place a demo order to see its confirmation.
 Orders stay in memory and no payment is collected or food ordered.
-
-Use this as the existing website to agentify: ground menu answers in its menu
-data and connect an agent's ordering tools to its cart and checkout logic.
-See the [example's README](examples/pizza_restaurant/README.md) for the file layout.
+See the [example's README](examples/marrow_point_pizza/README.md) for the file layout.
 
 ### Agentified version
 
-The [agentified pizza restaurant](examples/pizza_restaurant_agentified/) is a copy
-of the existing website with the generated browser assistant embedded below its
-menu and cart. The original website remains available on its own.  
+The [agentified pizza restaurant](examples/marrow_point_pizza_agentified/) is a copy
+of the existing website with an assistant section at the end of the page. A coding
+agent made it by following the [agentify-website skill](skills/agentify-website/SKILL.md).
+The original website remains available on its own. These were the steps:
 
-To create this version,
-[examples/pizza_restaurant_website_assistant.hocon](examples/pizza_restaurant_website_assistant.hocon)
-and the generated [pizza_restaurant_website_assistant.network.json](examples/sites/pizza_restaurant_website_assistant_static/pizza_restaurant_website_assistant.network.json)
-can be used as a starting point for the agent network.
-Its agents need to be grounded in the restaurant's actual menu and cart next:
-
-1. Copy the existing website:
+1. Copy the site, and copy the browser runtime from
+   [skills/agentify-website/runtime/](skills/agentify-website/runtime/) into its
+   `runtime/` folder unchanged.
+2. Expose the site's operations. The page's buttons, its checkout form and the
+   assistant all call the same methods on `App.page` in
+   [script.js](examples/marrow_point_pizza_agentified/script.js).
+   [site-actions.js](examples/marrow_point_pizza_agentified/site-actions.js) registers
+   four of them as actions: `get_restaurant_state` reads the menu, cart and page facts,
+   `add_to_cart` and `set_cart_quantities` change the cart, and `place_demo_order`
+   places an order. Each action says whether it reads, writes, or can't be undone. The
+   manifest lists them in `actions.agentTools`, and the runtime offers them to the model
+   as `website_*` tools.
+3. Write the network in
+   [little_oven_pizza.hocon](examples/marrow_point_pizza_agentified/little_oven_pizza.hocon),
+   starting from the skill's template. It is one agent, `little_oven_assistant`, that
+   takes facts only from tool results and says plainly what the site can't do, such as
+   discount codes or table bookings. The site's settings, such as its default model and
+   the partner sites it may call, are in
+   [agent-manifest.json](examples/marrow_point_pizza_agentified/agent-manifest.json).
+4. Build and check the published files:
    ```shell
-   cp -R examples/pizza_restaurant examples/pizza_restaurant_agentified
+   node skills/agentify-website/scripts/build_network.mjs \
+     examples/marrow_point_pizza_agentified/little_oven_pizza.hocon \
+     --manifest examples/marrow_point_pizza_agentified/agent-manifest.json
    ```
-2. Select components from
-   [the generated static bundle](examples/sites/pizza_restaurant_website_assistant_static/):
-   copy its `agent-manifest.json`,
-   `pizza_restaurant_website_assistant.network.json`, `links.json`, and
-   `agent-mcp.json` into the new directory. Copy the browser runtime from
-   [skills/agentify-website/runtime/](skills/agentify-website/runtime/) instead of the
-   bundle's `runtime/`: it is nsdeploy's runtime with the `website_*` tools of step 5.
-   Keep the restaurant's HTML and styles; the generated bundle's full-page
-   `index.html` and `theme.css` are not needed.
-3. Add a mount point below the restaurant checkout in `index.html` and load
-   `site.js` as a module. In [site.js](examples/pizza_restaurant_agentified/site.js),
-   call the copied runtime's `boot()` with that mount point and URLs relative to
-   the current site. The runtime provides chat, AI model settings, agent activity,
-   structured action proposals, and a confirmation dialog.
-4. Ground the network in the restaurant. Update the copied network's instructions
-   to use actual menu and order data, remove instructions to invent demo results,
-   and resolve the ordering and delivery specialists as local agents. `site.js`
-   appends the current menu, cart, prices and latest local order to each agent
-   invocation. All agents read the same state used by the restaurant UI.
-5. Connect website operations. Export shared state and checkout functions from
-   `script.js`; register `get_restaurant_state`, `add_to_cart`, `set_cart`, and
-   `checkout_demo_order` in
-   [restaurant-actions.js](examples/pizza_restaurant_agentified/restaurant-actions.js).
-   Declare this module in the manifest's `actions` field and list the read/cart
-   and checkout operations in `actions.agentTools`. The copied runtime's `runner.js` includes
-   a bridge that exposes those operations as model-callable `website_*` tools.
-   The agent calls `website_add_to_cart` to run the site's code immediately and
-   receives a receipt with the updated cart. `website_checkout_demo_order` is
-   also a callable tool, gated by the engine's confirmation callback. It opens
-   a review dialog containing the cart, total and fulfillment details before
-   calling the shared `submitOrder()` function. All arguments are schema-validated.
-   CRUSE forms still collect missing details together: submitting an intake form
-   passes its values to the agent, which then calls the checkout tool. Collecting
-   answers and confirming order placement remain separate steps.
-   The `render_cruse` tool attaches widgets directly to the response, preserving
-   them through plain-text final answers and specialist handoffs. The response
-   parser also accepts structured CRUSE JSON without a code fence.
-   Cart changes appear in the existing cart; checkout uses the same validation
-   and confirmation as the manual form. A cart version check rejects checkout
-   if the cart has changed since checkout was prepared.
-6. Serve the copy over HTTP (ES modules and runtime configuration need a server):
+   This writes `little_oven_pizza.network.json`, `agent-mcp.json`, the `.well-known/`
+   files and the `bridge/` page that other agent sites load. With `--check`, it reports
+   problems and stale files without writing anything.
+5. Mount the assistant: add its section to `index.html` and boot the runtime from
+   [site.js](examples/marrow_point_pizza_agentified/site.js), which also shows the
+   dialog that confirms an order.
+6. Serve the copy with the skill's server:
    ```shell
-   python -m http.server 8080 --directory ./examples/pizza_restaurant_agentified
+   node skills/agentify-website/scripts/serve_site.mjs examples/marrow_point_pizza_agentified --host ::1 --port 8083
    ```
-   Open http://127.0.0.1:8080/, scroll to **Ask Little Oven**, and expand
-   **⚙ AI model settings**. Paste your [Otari](#mozillas-otari) API key, then select
-   **Save and start**. The example uses hosted Otari and
-   `alibaba/qwen3.8-flash` by default. To skip the key, select
+   Unlike `python -m http.server`, it sends the CORS header on the public files, so
+   other agent sites can call this one. Open http://[::1]:8083/, scroll to
+   **Ask Little Oven Pizza**, and expand **⚙ AI model settings**. Paste your
+   [Otari](#mozillas-otari) API key, then select **Save and start**. The example uses
+   hosted Otari and `alibaba/qwen3.8-flash` by default. To skip the key, select
    **Connect with OpenRouter** and approve a key on OpenRouter instead
    ([what to know](docs/providers/providers.md#openrouter)), or **Connect with Otari** for
    an otari.ai key ([what to know](docs/providers/otari.md#hosted-otari-otariai)). For another provider, select it in the panel,
    which fills in its provider URL and model, or enter both under
    **Advanced settings (optional)**. The provider must allow requests from the browser.
-   The selected provider receives the chat and restaurant context; LLM calls use
-   the customer's credentials.
+   The selected provider receives the chat and the page data the assistant reads; LLM
+   calls use the visitor's credentials. On `[::1]` the runtime also keeps the key in a
+   cookie that other local pages can read, so use a key with a low spending limit.
 
-Try asking “What are the vegetarian options?” or “Add two Margherita pizzas to
-my cart.” The agent calls the cart tool and the visible cart updates. Then ask
-for pickup or delivery checkout. Provide a name and, for delivery, an address; review the cart
-and total in the checkout tool's confirmation dialog. Its receipt and the
-restaurant confirmation show the resulting demo order.
+Try asking "Which pizzas are vegan or gluten-free, and what allergens do they have?" or
+"Add two Margherita pizzas and one Roasted Veg to my cart." The assistant calls the cart
+tool and the visible cart updates at once. Then ask it to order for pickup or delivery,
+with your name and, for delivery, an address. Before the order is placed, a dialog shows
+the pizzas, total, name and fulfillment details and asks you to confirm.
 
-This version supports menu questions, shared-cart updates, demo checkout and
-the latest local order's `received` status. Orders still live only in page memory;
-no food is ordered or payment collected. Delivery is a simulated choice, with
-no external delivery delegation or live tracking. The copied `agent-mcp.json`
-explicitly marks the public MCP facade unavailable: static hosting alone does
-not provide a server for other websites to submit orders. See the
-[agentified example's README](examples/pizza_restaurant_agentified/README.md)
-for component details and verification instructions.
+Orders still live only in page memory; no food is ordered or payment collected. The
+assistant can also ask the guesthouse and harbor tours sites' assistants what they
+offer, and other agent sites can call its network (see
+[Connect to other agent networks](#connect-to-other-agent-networks)). See the
+[agentified example's README](examples/marrow_point_pizza_agentified/README.md)
+for linked sites, component details and tests.
 
 ### Agentify your own website
 
@@ -366,45 +346,36 @@ The network's top-level `tools` array contains its agent definitions. Each agent
 | `tools` | The agents or capabilities it can call, such as local agent names, published peer-network URLs, or MCP descriptors. An empty list declares no downstream references. |
 
 This shortened example follows the structure of the
-[pizza restaurant network](examples/pizza_restaurant_agentified/pizza_restaurant_website_assistant.network.json).
-It keeps only the coordinator and menu specialist, with simplified instructions
-and invocation schemas:
+[pizza restaurant network](examples/marrow_point_pizza_agentified/little_oven_pizza.network.json).
+It has one agent, with shortened instructions. Its `tools` are the network URLs of two
+partner sites:
 
 ```json
 {
   "metadata": {
-    "description": "Help customers with the Little Oven Pizza menu."
+    "description": "Ask about our pizzas, allergens, address and opening hours, fill your cart and place a demo order at Little Oven Pizza."
   },
   "tools": [
     {
-      "name": "front_desk_coordinator",
+      "name": "little_oven_assistant",
       "function": {
-        "description": "Answer menu questions by consulting the menu specialist.",
+        "description": "Answers questions about Little Oven Pizza's pizzas, allergens, address and opening hours, fills the cart and places a demo pickup or delivery order for a visitor.",
         "parameters": {
           "type": "object",
           "properties": {
-            "inquiry": { "type": "string" }
+            "request": {
+              "type": "string",
+              "description": "The request in plain language."
+            }
           },
-          "required": ["inquiry"]
+          "required": ["request"]
         }
       },
-      "instructions": "Delegate menu questions to menu_specialist and summarize its answer. Never invent menu items or prices.",
-      "tools": ["menu_specialist"]
-    },
-    {
-      "name": "menu_specialist",
-      "function": {
-        "description": "Explain menu items, ingredients, dietary labels, allergens and prices.",
-        "parameters": {
-          "type": "object",
-          "properties": {
-            "inquiry": { "type": "string" }
-          },
-          "required": ["inquiry"]
-        }
-      },
-      "instructions": "Use only the current Restaurant state supplied by the website. Explain when information is unavailable.",
-      "tools": []
+      "instructions": "You are the assistant on the Little Oven Pizza website. Facts come only from website_* tool results and from this conversation. For a room or somewhere to stay, ask tidewhistle_guesthouse what it offers and how to book.",
+      "tools": [
+        "http://127.0.0.1:8080/tidewhistle_guesthouse",
+        "http://localhost:8081/marrow_point_harbor_tours"
+      ]
     }
   ]
 }
@@ -412,22 +383,21 @@ and invocation schemas:
 
 The site's separate `agent-manifest.json` identifies the network through `name`,
 selects its public entry point through `front_man` (here,
-`front_desk_coordinator`), and points `hocon` to the published `.network.json`
-file. See the [pizza restaurant manifest](examples/pizza_restaurant_agentified/agent-manifest.json).
+`little_oven_assistant`), and points `hocon` to the published `.network.json`
+file. See the [pizza restaurant manifest](examples/marrow_point_pizza_agentified/agent-manifest.json).
 The browser runtime loads this definition, runs the entry agent, and dispatches
-its calls to the referenced specialists or tools.
+its calls to the referenced agents, partner networks or tools.
 
-The full pizza example also includes an invocation `mode` for its AAOSA
-delegation protocol (`Determine`, `Fulfill`, or `Follow up`), shared instruction
-fields, `llm_config`, an execution time limit, and presentation and deployment
-settings. These illustrate additional configuration beyond the basic agent
-definition. Model settings are hints; when loading a peer network, the caller's
-active router and model policy take precedence.
+The full pizza network also has shared instruction text in `commondefs`,
+`llm_config`, a step limit (`max_steps`), a `cruse` block for forms and tables in
+the chat, and `link_labels`, the partner names shown on the consent card. Model
+settings are hints; when loading a peer network, the caller's active router and
+model policy take precedence.
 
 Instructions alone do not supply live data or execute website operations. The
-pizza website supplies current restaurant state and registers cart and checkout
-actions with the runtime. Action arguments are validated, and checkout requires
-browser confirmation. Published definitions and instructions are public: keep
+pizza website registers its menu, cart and order functions as actions, and the
+runtime offers them to the model as `website_*` tools. Action arguments are checked
+against each action's schema, and placing an order requires browser confirmation. Published definitions and instructions are public: keep
 credentials out of them and explicitly control any private context shared across
 agent-site boundaries.
 
@@ -515,11 +485,11 @@ limit.
 ### Building a site
 
 #### How do I start?
-Three ways: follow the [Quickstart](docs/quickstart.md) to generate a network and test it
-with your own key, ask a coding agent to follow the
-[agentify-website skill](skills/agentify-website/SKILL.md) on a site you already have, or
-design a network in the hosted version of [Neuro SAN Studio](#cognizant-ai-labs-neuro-san).
-The skill needs Node.js 22 or newer. [`examples/guesthouse/`](examples/guesthouse/) and
+Ask a coding agent to follow the
+[agentify-website skill](skills/agentify-website/SKILL.md) on a site you already have. To
+sketch the agents first, design a network in the hosted version of
+[Neuro SAN Studio](#cognizant-ai-labs-neuro-san) and give it to the skill as a starting
+point, as the [Quickstart](docs/quickstart.md) shows. The skill needs Node.js 22 or newer. [`examples/guesthouse/`](examples/guesthouse/) and
 [`examples/guesthouse_agentified/`](examples/guesthouse_agentified/) show a site before
 and after.
 
