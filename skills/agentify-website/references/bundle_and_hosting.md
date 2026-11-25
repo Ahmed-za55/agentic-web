@@ -322,6 +322,11 @@ policies it allows, add the runtime's one, `agentify-website`:
 Content-Security-Policy: require-trusted-types-for 'script'; trusted-types agentify-website
 ```
 
+Site code that writes or parses HTML uses the same policy: pass the HTML through
+`trustedHtml` from `runtime/trusted-types.js`, as the bridge template's `readPage` does.
+Import it by that one URL, such as `../runtime/trusted-types.js` from `js/` or `bridge/`,
+with no `?v=` query: a second copy of the module cannot create the policy again.
+
 ## Paying for visitors' model calls
 
 By default, each visitor pays for the chat's model calls with their own key. The site can

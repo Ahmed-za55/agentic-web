@@ -7,6 +7,8 @@ import { BookingPage } from "../js/booking-page.js";
 import { GuesthouseData } from "../js/guesthouse-data.js";
 import { HousePolicies } from "../js/house-policies.js";
 import { ReservationBook } from "../js/reservation-book.js";
+// Parsing a page needs the runtime's Trusted Types policy where the site turns them on.
+import { trustedHtml } from "../runtime/trusted-types.js";
 
 /**
  * Shares four reads with the partner sites that call this site's network: the rooms with
@@ -275,7 +277,7 @@ class BridgeActions {
     if (!response.ok) {
       throw new Error(`The site's page answered ${response.status}.`);
     }
-    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const page = new DOMParser().parseFromString(trustedHtml(await response.text()), "text/html");
     // A parsed page resolves links against this frame's address. A base element makes
     // them resolve against the page's own address, as they do on the page.
     const base = page.createElement("base");

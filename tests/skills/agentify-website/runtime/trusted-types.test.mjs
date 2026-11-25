@@ -1,7 +1,8 @@
-// Checks that the chat works on a page that turns on Trusted Types (issue #58).
+// Checks that the chat works on a page that turns on Trusted Types.
 // Run from the repository root: node --test "tests/**/*.test.mjs"
 // No browser is needed: the policy is tested with a stand-in for the browser's
-// trustedTypes, and every runtime copy is read to find writes that skip the policy.
+// trustedTypes, and the runtime, the skill's templates and each example site are read to
+// find writes that skip the policy.
 import assert from "node:assert/strict";
 import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
@@ -10,14 +11,15 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const SKILL_RUNTIME = path.join(ROOT, "skills/agentify-website/runtime");
+const SKILL_TEMPLATES = path.join(ROOT, "skills/agentify-website/templates");
 const MODULE = new URL("../../../../skills/agentify-website/runtime/trusted-types.js", import.meta.url).href;
 
 /**
- * Tests the runtime's Trusted Types policy and where the runtime uses it.
+ * Tests the runtime's Trusted Types policy and where the runtime and site code use it.
  *
  * With require-trusted-types-for 'script', the browser refuses a plain string for
  * innerHTML, outerHTML, insertAdjacentHTML, DOMParser.parseFromString and new Worker.
- * The runtime passes each one through its policy, "agentify-website".
+ * The runtime and site code pass each one through the policy, "agentify-website".
  */
 class TestTrustedTypes {
   static loads = 0;
@@ -126,8 +128,43 @@ class TestTrustedTypes {
   }
 
   /**
-   * In every runtime copy, each HTML write, HTML parse and worker start goes through the
-   * policy, so Trusted Types cannot block it. Comment lines are ignored.
+   * Every .js file that can write or parse HTML on an agentified site: the skill's runtime
+   * and templates, and each example site with its runtime, bridge and own code.
+   *
+   * :return: The files' paths.
+   */
+  static async codeFiles() {
+    const folders = [SKILL_RUNTIME, SKILL_TEMPLATES];
+    for (const runtime of (await TestTrustedTypes.runtimeFolders()).slice(1)) {
+      folders.push(path.dirname(runtime));
+    }
+    const files = [];
+    for (const folder of folders) {
+      for (const name of await readdir(folder, { recursive: true })) {
+        if (TestTrustedTypes.isScanned(name)) {
+          files.push(path.join(folder, name));
+        }
+      }
+    }
+    return files;
+  }
+
+  /**
+   * Whether the sink check reads a file. Tests run in Node, and trusted-types.js is the
+   * policy itself, so both are left out.
+   *
+   * :param name: The file's path inside its folder.
+   * :return: True for a .js file outside any tests folder, other than trusted-types.js.
+   */
+  static isScanned(name) {
+    const parts = name.split(path.sep);
+    return name.endsWith(".js") && !parts.includes("tests") && parts[parts.length - 1] !== "trusted-types.js";
+  }
+
+  /**
+   * In the runtime, the skill's templates and each example site, each HTML write, HTML
+   * parse and worker start goes through the policy, so Trusted Types cannot block it.
+   * Comment lines are ignored.
    */
   static async testEveryWriteUsesThePolicy() {
     const sinks = [
@@ -137,14 +174,13 @@ class TestTrustedTypes {
       ["new Worker", /new Worker\((?!\s*trustedScriptUrl\()/g],
     ];
     const found = [];
-    for (const folder of await TestTrustedTypes.runtimeFolders()) {
-      for (const file of (await readdir(folder)).filter((f) => f.endsWith(".js") && f !== "trusted-types.js")) {
-        const code = (await readFile(path.join(folder, file), "utf8")).replace(/^[ \t]*\/\/.*$/gm, "");
-        for (const [name, pattern] of sinks) {
-          for (const match of code.matchAll(pattern)) {
-            const line = code.slice(0, match.index).split("\n").length;
-            found.push(`${path.relative(ROOT, path.join(folder, file))}:${line} ${name}`);
-          }
+    for (const file of await TestTrustedTypes.codeFiles()) {
+      // Blank out comment lines, keeping their line breaks so line numbers stay right.
+      const code = (await readFile(file, "utf8")).replace(/^[ \t]*\/\/.*$/gm, "");
+      for (const [name, pattern] of sinks) {
+        for (const match of code.matchAll(pattern)) {
+          const line = code.slice(0, match.index).split("\n").length;
+          found.push(`${path.relative(ROOT, file)}:${line} ${name}`);
         }
       }
     }
@@ -165,5 +201,5 @@ class TestTrustedTypes {
 test("the runtime's policy is agentify-website, created once, passing strings unchanged", TestTrustedTypes.testPolicy);
 test("without Trusted Types the strings stay strings", TestTrustedTypes.testNoTrustedTypes);
 test("a page that does not allow the policy's name gets plain strings", TestTrustedTypes.testPolicyNotAllowed);
-test("every HTML write, HTML parse and worker start uses the policy, in every runtime copy", TestTrustedTypes.testEveryWriteUsesThePolicy);
+test("every HTML write, HTML parse and worker start uses the policy, in the runtime, the templates and each example site", TestTrustedTypes.testEveryWriteUsesThePolicy);
 test("each example has the skill's trusted-types.js", TestTrustedTypes.testExampleCopiesMatch);

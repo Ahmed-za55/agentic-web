@@ -1,4 +1,6 @@
 import { BookingFacts } from "./booking-facts.js";
+// Parsing a page needs the runtime's Trusted Types policy where the site turns them on.
+import { trustedHtml } from "../runtime/trusted-types.js";
 
 /**
  * Reads the house policies from policies.html, so the assistant answers from
@@ -21,7 +23,7 @@ export class HousePolicies {
     if (!response.ok) {
       throw new Error(`The policies page could not be loaded (HTTP ${response.status}).`);
     }
-    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const page = new DOMParser().parseFromString(trustedHtml(await response.text()), "text/html");
     const sections = [];
     for (const section of page.querySelectorAll("main section")) {
       sections.push(HousePolicies.section(section));

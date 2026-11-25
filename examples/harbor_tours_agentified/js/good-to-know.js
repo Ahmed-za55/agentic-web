@@ -1,3 +1,6 @@
+// Parsing a page needs the runtime's Trusted Types policy where the site turns them on.
+import { trustedHtml } from "../runtime/trusted-types.js";
+
 /**
  * Reads the Good to know page, policies.html, as plain data for the assistant:
  * each section's heading, points, paragraphs, table rows and links. Policy
@@ -16,7 +19,7 @@ export class GoodToKnow {
     if (typeof DOMParser === "undefined") throw new Error("Reading the Good to know page needs a browser.");
     const response = await fetch(url);
     if (!response.ok) throw new Error(`The Good to know page answered ${response.status}.`);
-    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const page = new DOMParser().parseFromString(trustedHtml(await response.text()), "text/html");
     const sections = [];
     for (const section of page.querySelectorAll("main section")) sections.push(GoodToKnow.section(section, url));
     return {

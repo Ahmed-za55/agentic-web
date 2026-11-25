@@ -8,6 +8,8 @@
 import { SiteData } from "../js/site-data.js";
 // TODO: keep this import only if the site shares a write ("Share writes" in linking.md).
 import { WriteWindow } from "./write-window.js";
+// Parsing a page needs the runtime's Trusted Types policy where the site turns them on.
+import { trustedHtml } from "../runtime/trusted-types.js";
 
 /**
  * Shares this site's reads, and any write, with the partner sites that call its network.
@@ -109,7 +111,7 @@ class BridgeActions {
     if (!response.ok) {
       throw new Error(`The site's page answered ${response.status}.`);
     }
-    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const page = new DOMParser().parseFromString(trustedHtml(await response.text()), "text/html");
     // A parsed page resolves links against this frame's address. A base element makes
     // them resolve against the page's own address, as they do on the page.
     const base = page.createElement("base");

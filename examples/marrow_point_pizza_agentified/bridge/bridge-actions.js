@@ -5,6 +5,8 @@
 // instructions fit both. The order is in order-window.js.
 import { App } from "../script.js";
 import { OrderWindow } from "./order-window.js";
+// Parsing a page needs the runtime's Trusted Types policy where the site turns them on.
+import { trustedHtml } from "../runtime/trusted-types.js";
 
 /**
  * Shares one read with the partner sites that call this site's network: the menu, today's
@@ -92,7 +94,7 @@ class BridgeActions {
     if (!response.ok) {
       throw new Error(`The site's page answered ${response.status}.`);
     }
-    const page = new DOMParser().parseFromString(await response.text(), "text/html");
+    const page = new DOMParser().parseFromString(trustedHtml(await response.text()), "text/html");
     // A parsed page resolves links against this frame's address. A base element makes
     // them resolve against the page's own address, as they do on the page.
     const base = page.createElement("base");
