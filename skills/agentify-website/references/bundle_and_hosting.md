@@ -314,7 +314,13 @@ Use HTTPS in production: the visitor's key is stored in the browser for this ori
 any script on the page can read it (spec section 4). Load no third-party scripts. The
 spec also asks for a restrictive Content-Security-Policy on the page. If you send one,
 allow the LLM router in `connect-src` and each partner's origin in `connect-src` and
-`frame-src`, then check the chat in a browser.
+`frame-src`, then check the chat in a browser. The runtime works with Trusted Types
+(`require-trusted-types-for 'script'`). If the policy also lists the Trusted Types
+policies it allows, add the runtime's one, `agentify-website`:
+
+```text
+Content-Security-Policy: require-trusted-types-for 'script'; trusted-types agentify-website
+```
 
 ## Paying for visitors' model calls
 

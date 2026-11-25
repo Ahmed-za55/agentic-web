@@ -84,6 +84,10 @@ Edited files. Each one has a line near its top saying that it was changed:
   HTTP status in the trace (see "Publisher-funded router" below).
 - `engine.js`, `ui.js` and `in-use-line.js` also support a publisher-funded router; see
   below.
+- `ui.js`, `cruse-render.js`, `discovered-actions.js`, `form-actions.js` and `sandbox.js`
+  pass what they write as HTML, parse as HTML or load as a script through
+  `trusted-types.js`, so the chat works under `require-trusted-types-for 'script'`. `ui.js`
+  also escapes the provider links, the theme's logo address and the log's event names.
 
 Publisher-funded router. nsdeploy's runtime can run without a visitor key only on its
 mock router. Spec §4 ("Default inference") also allows a default router that the
@@ -117,6 +121,10 @@ Added files:
 - `enter-key.js` tells whether Enter in the chat box sends the message. It does not while
   an input method (IME) is composing text, such as Japanese, Chinese or Korean, so the
   Enter that confirms the characters does not send a half-written message.
+- `trusted-types.js` holds the runtime's one Trusted Types policy, `agentify-website`. It
+  returns each string unchanged. That is safe because the runtime escapes every value it
+  puts in its own HTML, cleans a model's HTML with `renderSafeHtml`, only reads the pages
+  it parses with `DOMParser`, and loads no script but its own sandbox worker.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
