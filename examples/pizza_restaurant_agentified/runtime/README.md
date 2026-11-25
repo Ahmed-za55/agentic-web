@@ -79,6 +79,10 @@ Edited files. Each one has a line near its top saying that it was changed:
   so it goes back to the model on the next step. Gemini 3 refuses that step without it.
   Gemini also streams each tool call whole and without an `index`, so a new call id
   starts a new call instead of joining the one before it.
+- `ui.js`, `cruse-render.js`, `discovered-actions.js`, `form-actions.js` and `sandbox.js`
+  pass what they write as HTML, parse as HTML or load as a script through
+  `trusted-types.js`, so the chat works under `require-trusted-types-for 'script'`. `ui.js`
+  also escapes the provider links, the theme's logo address and the log's event names.
 
 Added files:
 
@@ -94,6 +98,10 @@ Added files:
   EU). Sites need no app registration.
 - `in-use-line.js` builds the "In use" line of ⚙ AI model settings: the provider, the
   model and the last four characters of the key the chat uses.
+- `trusted-types.js` holds the runtime's one Trusted Types policy, `agentify-website`. It
+  returns each string unchanged. That is safe because the runtime escapes every value it
+  puts in its own HTML, cleans a model's HTML with `renderSafeHtml`, only reads the pages
+  it parses with `DOMParser`, and loads no script but its own sandbox worker.
 
 This copy, in the pizza example, has one more change that the skill's copy does not have
 yet. It is the pizza example's CRUSE fix (commit `3119a8d`). `runner.js` documents each
