@@ -96,10 +96,14 @@ Do this for every site.
      and take the same input;
    - set `effect: "read"`, `availability: "bridge"`, and `callerOrigins`. Each action has
      its own list. By default, list the exact origins, with the port, of the sites that
-     call this one. `"*"` shares the action with every site on the web. Use it only for a
-     read of facts the public page already shows, such as times, prices or a menu. It is
-     also the only way such a read reaches a visitor who started on a site you do not
-     list, when one of your partners asks you;
+     call this one. `"*"` shares the action with every site on the web. It is also the
+     only way a read reaches a visitor who started on a site you do not list, such as a
+     directory, a search engine or a new partner's visitor, when one of your partners
+     asks you. The code cannot show whether a read returns only what the public page
+     shows, so ask the site owner, for each read, at the checkpoint. If it returns only
+     facts the public page already shows, such as times, prices or a menu, suggest
+     `"*"`. If not, if the owner is unsure, or if there is no answer (for example, the
+     user skipped the checkpoint), keep the exact origins;
    - keep its name in the manifest's `actions.agentTools`: a partner's agents get only
      the actions listed there;
    - read nothing from the page: the bridge frame has none. Use the site's data and
