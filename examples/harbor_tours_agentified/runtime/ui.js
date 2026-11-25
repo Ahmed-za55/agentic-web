@@ -28,6 +28,7 @@ import { reviewActions, setActionWindowPrompt } from "./action-transport.js";
 import { OpenRouterConnect } from "./openrouter-connect.js";
 import { OtariConnect } from "./otari-connect.js";
 import { InUseLine } from "./in-use-line.js";
+import { EnterKey } from "./enter-key.js";
 import { isPublisherFundedRouter } from "./engine.js";
 
 export const AI_MODEL_SETTINGS_LABEL = "AI model settings";
@@ -697,7 +698,8 @@ export function mountApp(root, { engine, trace, manifest, connect = null }) {
 
   sendBtn.addEventListener("click", send);
   input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") send();
+    // Not the Enter that confirms Japanese, Chinese or Korean input (enter-key.js).
+    if (EnterKey.sendsMessage(e)) send();
   });
   newChatBtn.addEventListener("click", () => {
     engine.resetHistory();

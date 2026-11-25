@@ -64,7 +64,8 @@ Edited files. Each one has a line near its top saying that it was changed:
   partner's own window, the chat asks in a message with an Open button that names the
   partner. "Agents working for you" shows each partner's address with its path, such as
   `localhost:8081/marrow_point_harbor_tours`, not only its host. Before the first call it
-  names the partner from `link_labels`, as the consent card does.
+  names the partner from `link_labels`, as the consent card does. The Enter that confirms
+  Japanese, Chinese or Korean input does not send the message (`enter-key.js`).
 - `action-transport.js` opens the confirmation dialog with focus on its heading, so a
   stray Enter cannot confirm an action. Closing the dialog puts focus back where it was.
   It lets the chat ask before a partner's window opens (`setActionWindowPrompt`). An
@@ -113,6 +114,9 @@ Added files:
   EU). Sites need no app registration.
 - `in-use-line.js` builds the "In use" line of ⚙ AI model settings: the provider, the
   model and the last four characters of the key the chat uses.
+- `enter-key.js` tells whether Enter in the chat box sends the message. It does not while
+  an input method (IME) is composing text, such as Japanese, Chinese or Korean, so the
+  Enter that confirms the characters does not send a half-written message.
 
 Protocol name: `nsdeploy`. Use it for `<protocol_name>` in `agent-manifest.json`. It
 names the discovery files, such as `.well-known/nsdeploy.json`, that nsdeploy's tools read.
