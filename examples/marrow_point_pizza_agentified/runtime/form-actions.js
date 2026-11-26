@@ -1,6 +1,6 @@
 // Discover the native HTML contract of site-owner-selected pages. No page scripts
-// Changed by agentic-web. See README.md in this folder for what changed.
 // execute during discovery. JavaScript-only forms need a registered site module.
+// Changed by agentic-web. See README.md in this folder for what changed.
 import { validateData } from "./actions.js";
 import { trustedHtml } from "./trusted-types.js";
 

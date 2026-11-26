@@ -61,7 +61,9 @@ named `website_<name>` (`runtime/runner.js`).
    `document.querySelector("#delivery-note").textContent`, adding ids where needed), or
    move them into one object that both renders the HTML and feeds the state reader.
    For facts on another page of the site, add a read action that fetches that page,
-   parses it with `DOMParser` and returns its text. Check for `DOMParser` first, and
+   parses it with `DOMParser` and returns its text. Pass the text through `trustedHtml`
+   from `runtime/trusted-types.js` before parsing, so the read works on a site that turns
+   on Trusted Types (see `bundle_and_hosting.md`). Check for `DOMParser` first, and
    throw when it is missing. Node has `fetch` but no `DOMParser`, and the test stand-in's
    address is the test's `BASE`, such as `http://localhost:8080/`, so a fetch made first
    would send a real request to whatever runs there. Under Node the action then returns

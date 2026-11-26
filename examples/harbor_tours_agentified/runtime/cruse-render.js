@@ -1,6 +1,6 @@
 // Presentation renderers use DOM nodes and a small allowlist. Model output never
-// Changed by agentic-web. See README.md in this folder for what changed.
 // supplies executable code, SVG markup, network resources, or global CSS.
+// Changed by agentic-web. See README.md in this folder for what changed.
 import { trustedHtml } from "./trusted-types.js";
 
 export const PRESENTATION_CSS = `
