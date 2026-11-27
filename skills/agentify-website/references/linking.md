@@ -109,7 +109,7 @@ Do this for every site.
    - read nothing from the page: the bridge frame has none. Use the site's data and
      business code with a fresh store or the site's server, and for facts that only the
      page's HTML holds, fetch the page and parse it with `DOMParser`, as the template's
-     `readPage` does;
+     `readPage` does, passing the text through the runtime's `trustedHtml`;
    - leave out what belongs to one visitor, such as a basket, a form or a booking, and
      anything personal.
 
